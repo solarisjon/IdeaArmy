@@ -26,7 +26,9 @@ WORKDIR /app
 COPY deployment/container-files/sources.list /etc/apt/sources.list
 COPY deployment/container-files/ca-certificates.crt /tmp/netapp-ca.crt
 COPY deployment/container-files/99insecure /etc/apt/apt.conf.d/99insecure
-RUN cat /tmp/netapp-ca.crt >> /etc/ssl/certs/ca-certificates.crt && rm /tmp/netapp-ca.crt
+RUN mkdir -p /etc/ssl/certs \
+    && cat /tmp/netapp-ca.crt >> /etc/ssl/certs/ca-certificates.crt \
+    && rm /tmp/netapp-ca.crt
 
 RUN rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/* \
     && update-ca-certificates 2>/dev/null || true
