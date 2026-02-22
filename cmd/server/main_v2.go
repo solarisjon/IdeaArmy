@@ -418,9 +418,9 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         <h2>🎯 Mission Briefing</h2>
 
         <div class="field">
-            <label>API Key</label>
-            <input type="password" id="apiKey" placeholder="Leave blank to use server environment">
-            <small>Optional — falls back to LLMPROXY_KEY / OPENAI_API_KEY from server env</small>
+            <label>Your LLM Token <span style="color:#ef4444">*</span></label>
+            <input type="password" id="apiKey" placeholder="user=yourname&amp;key=sk_..." required>
+            <small>Your personal LLM proxy key (format: user=name&amp;key=sk_...) or OpenAI API key. Each user must provide their own token.</small>
         </div>
 
         <div class="field">
@@ -558,6 +558,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             const apiKey = document.getElementById('apiKey').value.trim();
             const topic = document.getElementById('topic').value.trim();
 
+            if (!apiKey) { alert('Please provide your LLM token'); return; }
             if (!topic) { alert('Please provide a mission objective'); return; }
 
             document.getElementById('setup').style.display = 'none';
@@ -692,6 +693,11 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 
 	if req.Topic == "" {
 		respondJSON(w, http.StatusBadRequest, map[string]string{"error": "Topic is required"})
+		return
+	}
+
+	if req.APIKey == "" {
+		respondJSON(w, http.StatusBadRequest, map[string]string{"error": "LLM token is required — each user must provide their own"})
 		return
 	}
 

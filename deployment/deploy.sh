@@ -3,7 +3,8 @@
 # Podman deployment script for IdeaArmy War Room Server (server-v2)
 # Deploys the web server in a Podman pod on Debian Linux or macOS.
 #
-# LLMPROXY_KEY is read from the host environment — never baked into the image.
+# Each user provides their own LLM token via the web UI.
+# No API keys need to be set at deployment time.
 #
 # Usage: ./deploy.sh <command>
 # Run:   ./deploy.sh help
@@ -27,9 +28,9 @@ APP_PORT="${APP_PORT:-8080}"
 APP_IMAGE="localhost/${APP_NAME}:${TAG}"
 APP_CONTAINER="${APP_NAME}-${TAG}"
 
-# LLM configuration — read from host environment
-# LLMPROXY_KEY format: user=<username>&key=<api_key>
-LLMPROXY_KEY="${LLMPROXY_KEY:?ERROR: LLMPROXY_KEY must be set in your environment}"
+# LLM configuration — defaults for server; each user provides their own token via the web UI
+# LLMPROXY_KEY is optional at deployment time (only used as fallback)
+LLMPROXY_KEY="${LLMPROXY_KEY:-}"
 LLM_MODEL="${LLM_MODEL:-gpt-4o}"
 LLM_BASE_URL="${LLM_BASE_URL:-https://llm-proxy-api.ai.eng.netapp.com/v1}"
 HTTPS_PROXY="${HTTPS_PROXY:-http://10.251.20.33:3128}"
@@ -67,15 +68,23 @@ build_image() {
 
 start_container() {
     info "Starting War Room server: $APP_CONTAINER"
+
+    local env_args=(
+        -e LLM_MODEL="$LLM_MODEL"
+        -e LLM_BASE_URL="$LLM_BASE_URL"
+        -e HTTPS_PROXY="$HTTPS_PROXY"
+        -e PORT="$APP_PORT"
+        -e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+    )
+    # Only pass LLMPROXY_KEY if set (optional fallback)
+    if [ -n "$LLMPROXY_KEY" ]; then
+        env_args+=(-e LLMPROXY_KEY="$LLMPROXY_KEY")
+    fi
+
     podman run -d \
         --pod "$POD_NAME" \
         --name "$APP_CONTAINER" \
-        -e LLMPROXY_KEY="$LLMPROXY_KEY" \
-        -e LLM_MODEL="$LLM_MODEL" \
-        -e LLM_BASE_URL="$LLM_BASE_URL" \
-        -e HTTPS_PROXY="$HTTPS_PROXY" \
-        -e PORT="$APP_PORT" \
-        -e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+        "${env_args[@]}" \
         "$APP_IMAGE"
 }
 

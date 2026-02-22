@@ -36,11 +36,15 @@ func ResolveBackend(apiKeyOverride string) (*BackendConfig, error) {
 		// Auto-detect from available keys
 		switch {
 		case apiKeyOverride != "":
-			// If caller passed a key, check if it looks like an Anthropic key
+			// Detect key format to choose backend
 			if strings.HasPrefix(apiKeyOverride, "sk-ant-") {
 				cfg.Backend = "anthropic"
+			} else if strings.Contains(apiKeyOverride, "user=") && strings.Contains(apiKeyOverride, "key=") {
+				cfg.Backend = "openai" // LLM proxy format
+			} else if strings.HasPrefix(apiKeyOverride, "sk-") || strings.HasPrefix(apiKeyOverride, "sk_") {
+				cfg.Backend = "openai"
 			} else {
-				cfg.Backend = "anthropic" // default assumption for passed keys
+				cfg.Backend = "openai" // default assumption for passed keys
 			}
 		case os.Getenv("ANTHROPIC_API_KEY") != "" || os.Getenv("ANTHROPIC_KEY") != "":
 			cfg.Backend = "anthropic"
@@ -54,7 +58,13 @@ func ResolveBackend(apiKeyOverride string) (*BackendConfig, error) {
 	// Resolve API key (priority: LLM_API_KEY > apiKeyOverride > backend-specific)
 	cfg.APIKey = os.Getenv("LLM_API_KEY")
 	if cfg.APIKey == "" && apiKeyOverride != "" {
-		cfg.APIKey = apiKeyOverride
+		// Parse LLM proxy format (user=xxx&key=xxx) if applicable
+		if strings.Contains(apiKeyOverride, "user=") && strings.Contains(apiKeyOverride, "key=") {
+			cfg.APIKey = parseLLMProxyKey(apiKeyOverride)
+			cfg.User = parseLLMProxyUser(apiKeyOverride)
+		} else {
+			cfg.APIKey = apiKeyOverride
+		}
 	}
 	if cfg.APIKey == "" {
 		switch cfg.Backend {
