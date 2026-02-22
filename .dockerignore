@@ -1,0 +1,8 @@
+bin/
+*.html
+.git/
+.github/
+.env
+*.md
+!README.md
+idea_sheet_*

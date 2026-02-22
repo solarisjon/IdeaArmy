@@ -1,0 +1,2 @@
+Acquire::https::repomirror-rtp.eng.netapp.com::Verify-Peer "false";
+Acquire::https::repomirror-rtp.eng.netapp.com::Verify-Host "false";
