@@ -3,7 +3,7 @@ FROM golang:1.24-bookworm AS builder
 
 WORKDIR /build
 
-# NetApp proxy + CA certs so GOTOOLCHAIN=auto can fetch Go 1.25 toolchain
+# NetApp proxy + CA certs for dependency downloads behind corporate firewall
 COPY deployment/container-files/ca-certificates.crt /tmp/netapp-ca.crt
 RUN cat /tmp/netapp-ca.crt >> /etc/ssl/certs/ca-certificates.crt && rm /tmp/netapp-ca.crt
 ENV HTTPS_PROXY=http://10.251.20.33:3128
@@ -11,7 +11,6 @@ ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
 # Cache dependencies first
 COPY go.mod go.sum ./
-ENV GOTOOLCHAIN=auto
 RUN go mod download
 
 # Copy source and build the server-v2 binary (static, no CGO)
