@@ -5,6 +5,7 @@ WORKDIR /build
 
 # Cache dependencies first
 COPY go.mod go.sum ./
+ENV GOTOOLCHAIN=auto
 RUN go mod download
 
 # Copy source and build the server-v2 binary (static, no CGO)
