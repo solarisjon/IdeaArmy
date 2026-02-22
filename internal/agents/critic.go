@@ -2,7 +2,7 @@ package agents
 
 import (
 	"fmt"
-	"github.com/yourusername/ai-agent-team/internal/claude"
+	"github.com/yourusername/ai-agent-team/internal/llm"
 	"github.com/yourusername/ai-agent-team/internal/models"
 )
 
@@ -12,7 +12,7 @@ type CriticAgent struct {
 }
 
 // NewCriticAgent creates a new critic agent
-func NewCriticAgent(client *claude.Client) *CriticAgent {
+func NewCriticAgent(client llm.Client) *CriticAgent {
 	systemPrompt := `You are the Critic Agent, a constructive skeptic who challenges assumptions and identifies weaknesses.
 
 Your responsibilities:

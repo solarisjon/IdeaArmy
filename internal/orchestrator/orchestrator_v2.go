@@ -3,11 +3,12 @@ package orchestrator
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/yourusername/ai-agent-team/internal/agents"
-	"github.com/yourusername/ai-agent-team/internal/claude"
+	"github.com/yourusername/ai-agent-team/internal/llm"
 	"github.com/yourusername/ai-agent-team/internal/models"
 )
 
@@ -20,12 +21,11 @@ type ConfigurableOrchestrator struct {
 }
 
 // NewConfigurableOrchestrator creates a new orchestrator with custom team config
-func NewConfigurableOrchestrator(apiKey string, config *models.TeamConfig) *ConfigurableOrchestrator {
+func NewConfigurableOrchestrator(client llm.Client, config *models.TeamConfig) *ConfigurableOrchestrator {
 	if config == nil {
 		config = models.DefaultTeamConfig()
 	}
 
-	client := claude.NewClient(apiKey)
 	agentMap := make(map[models.AgentRole]agents.Agent)
 
 	// Initialize agents based on config
@@ -134,7 +134,7 @@ Please set the direction for this discussion. What should each team member focus
 	}
 
 	o.addMessage("system", string(models.RoleTeamLeader), response.Content, "kickoff")
-	o.notify(fmt.Sprintf("Team Leader: %s", o.truncate(response.Content, 200)))
+	o.notify(fmt.Sprintf("  📣 [team_leader] %s", o.truncate(response.Content, 200)))
 
 	return nil
 }
@@ -195,14 +195,20 @@ func (o *ConfigurableOrchestrator) runAgentContribution(role models.AgentRole, p
 
 	// Add ideas if any were generated
 	if len(response.Ideas) > 0 {
+		var ideaTitles []string
 		for _, idea := range response.Ideas {
 			o.Discussion.Ideas = append(o.Discussion.Ideas, idea)
 			o.notify(fmt.Sprintf("    💡 New idea: %s", idea.Title))
+			ideaTitles = append(ideaTitles, idea.Title)
 		}
+		// Use idea titles for speech bubble instead of raw JSON
+		speechText := fmt.Sprintf("💡 Proposed: %s", strings.Join(ideaTitles, " | "))
+		o.notify(fmt.Sprintf("  📣 [%s] %s", string(role), o.truncate(speechText, 200)))
+	} else {
+		o.notify(fmt.Sprintf("  📣 [%s] %s", string(role), o.truncate(response.Content, 200)))
 	}
 
 	o.addMessage(string(role), "team", response.Content, string(role))
-	o.notify(fmt.Sprintf("    %s", o.truncate(response.Content, 150)))
 
 	return nil
 }
@@ -227,7 +233,7 @@ If this is the final round, identify which ideas are strongest.`, round)
 	}
 
 	o.addMessage("system", string(models.RoleTeamLeader), response.Content, "synthesis")
-	o.notify(fmt.Sprintf("    Synthesis: %s", o.truncate(response.Content, 200)))
+	o.notify(fmt.Sprintf("  📣 [team_leader] %s", o.truncate(response.Content, 200)))
 
 	return nil
 }
@@ -253,6 +259,7 @@ func (o *ConfigurableOrchestrator) runFinalValidation() error {
 	}
 
 	o.addMessage("system", string(models.RoleModerator), response.Content, "validation")
+	o.notify(fmt.Sprintf("  📣 [moderator] Evaluating and scoring all ideas..."))
 
 	// Show scores
 	for _, idea := range o.Discussion.Ideas {
@@ -281,6 +288,7 @@ func (o *ConfigurableOrchestrator) runLeaderSelection() error {
 	}
 
 	o.addMessage("system", string(models.RoleTeamLeader), response.Content, "selection")
+	o.notify(fmt.Sprintf("  📣 [team_leader] %s", o.truncate(response.Content, 200)))
 
 	// Select highest scored idea
 	return o.autoSelectBestIdea()
@@ -317,13 +325,17 @@ func (o *ConfigurableOrchestrator) runVisualization() error {
 
 	html, err := uiCreator.(*agents.UICreatorAgent).GenerateIdeaSheet(o.Discussion)
 	if err != nil {
-		return err
+		o.notify(fmt.Sprintf("  ⚠️ Report generation failed: %s", err.Error()))
+		o.notify("  📣 [ui_creator] Sorry, couldn't generate the report this time!")
+		// Non-fatal — don't fail the whole discussion over a visualization error
+		return nil
 	}
 
 	o.addMessage(string(models.RoleTeamLeader), string(models.RoleUICreator), "Create the final idea sheet", "request")
 	o.addMessage(string(models.RoleUICreator), "team", html, "visualization")
 
 	o.notify("  ✨ Idea sheet generated successfully")
+	o.notify("  📣 [ui_creator] Idea sheet created — painting the final vision!")
 
 	return nil
 }

@@ -10,23 +10,20 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 
+	"github.com/yourusername/ai-agent-team/internal/llmfactory"
 	"github.com/yourusername/ai-agent-team/internal/orchestrator"
 )
 
 func main() {
-	// Get API key from environment - check both ANTHROPIC_API_KEY and ANTHROPIC_KEY
-	apiKey := os.Getenv("ANTHROPIC_API_KEY")
-	if apiKey == "" {
-		apiKey = os.Getenv("ANTHROPIC_KEY")
-	}
-	if apiKey == "" {
-		log.Fatal("Please set ANTHROPIC_API_KEY or ANTHROPIC_KEY environment variable")
+	// Create LLM client (auto-detects backend from env vars)
+	client, err := llmfactory.NewClientAuto("")
+	if err != nil {
+		log.Fatalf("Failed to create LLM client: %v\nSet ANTHROPIC_API_KEY, LLMPROXY_KEY, OPENAI_API_KEY, or LLM_API_KEY.", err)
 	}
 
 	// Create the orchestrator
-	orch := orchestrator.NewOrchestrator(apiKey)
+	orch := orchestrator.NewOrchestrator(client)
 
 	// Set up a progress callback to monitor the discussion
 	orch.OnProgress = func(message string) {

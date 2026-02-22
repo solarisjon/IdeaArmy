@@ -107,10 +107,12 @@ A sophisticated multi-agent AI system built in Go that orchestrates **configurab
 Experience the discussion in real-time with dynamic spinners, progress bars, and live updates!
 
 ```bash
-# Set your API key
-export ANTHROPIC_API_KEY="your-key-here"
+# Set your LLM backend API key (auto-detected):
+export ANTHROPIC_API_KEY="your-key-here"   # Anthropic Claude
 # or
-export ANTHROPIC_KEY="your-key-here"
+export LLMPROXY_KEY="user=username&key=sk_xxx"  # NetApp LLM Proxy
+# or
+export OPENAI_API_KEY="your-key-here"      # OpenAI-compatible
 
 # Run the beautiful TUI
 ./bin/cli-tui
@@ -207,7 +209,7 @@ Each round follows this pattern:
 
 ### Prerequisites
 - Go 1.21 or higher
-- Anthropic API key ([get one here](https://console.anthropic.com/))
+- An API key for at least one supported LLM backend (Anthropic, OpenAI, or NetApp LLM Proxy)
 
 ### Installation
 
@@ -258,7 +260,7 @@ ai-agent-team/
 │   │   ├── styles.go       # Lipgloss styles
 │   │   └── runner.go       # TUI runner
 │   └── claude/
-│       └── client.go       # Anthropic API client
+│       └── client.go       # Multi-backend LLM client
 ├── bin/
 │   ├── cli, cli-v2, cli-tui
 │   └── server, server-v2
@@ -270,6 +272,17 @@ ai-agent-team/
 ```
 
 ## Configuration Options
+
+### LLM Backend (auto-detected from whichever key is set)
+
+| Variable | Description |
+|---|---|
+| `ANTHROPIC_API_KEY` or `ANTHROPIC_KEY` | Anthropic Claude backend |
+| `LLMPROXY_KEY` | NetApp LLM Proxy (OpenAI-compatible). Format: `user=username&key=sk_xxx` |
+| `OPENAI_API_KEY` or `LLM_API_KEY` | OpenAI-compatible backend |
+| `LLM_BACKEND` | Force backend: `anthropic` or `openai` |
+| `LLM_MODEL` | Override default model (default: `claude-sonnet-4-20250514` for Anthropic, `gpt-4o` for OpenAI) |
+| `LLM_BASE_URL` | Override API endpoint |
 
 ### Programmatic Configuration
 
@@ -326,7 +339,7 @@ orch := orchestrator.NewConfigurableOrchestrator(apiKey, config)
 - **Extended**: 12-18 API calls, ~25,000-40,000 tokens ($0.40-$0.70)
 - **Full**: 20-30 API calls, ~40,000-60,000 tokens ($0.70-$1.20)
 
-*Costs based on Claude Sonnet 4 pricing as of Feb 2025*
+*Costs estimated for Claude Sonnet 4; actual costs vary by LLM backend and model*
 
 ## When to Use Each Configuration
 
@@ -392,7 +405,7 @@ config := &models.TeamConfig{
 ### High API costs
 - Use Standard configuration for routine tasks
 - Reserve Extended/Full for important decisions
-- Monitor your Anthropic console for usage
+- Monitor your API usage via your provider's dashboard
 
 ## Migration from v1
 
@@ -432,7 +445,7 @@ MIT License - free to use and modify
 
 Built with:
 - Go programming language
-- Anthropic Claude API (Sonnet 4)
+- Multi-backend LLM support (Anthropic Claude, OpenAI, NetApp LLM Proxy)
 - Modern web standards
 
 ---
@@ -440,10 +453,13 @@ Built with:
 **Ready to explore ideas with your AI team?**
 
 ```bash
-# Quick start
-export ANTHROPIC_API_KEY="your-key"
+# Quick start — set any supported LLM key:
+export ANTHROPIC_API_KEY="your-key"        # Anthropic Claude
 # or
-export ANTHROPIC_KEY="your-key"
+export LLMPROXY_KEY="user=name&key=sk_xxx" # NetApp LLM Proxy
+# or
+export OPENAI_API_KEY="your-key"           # OpenAI-compatible
+
 ./bin/cli-v2
 
 # Or try the web interface

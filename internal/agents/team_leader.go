@@ -2,7 +2,7 @@ package agents
 
 import (
 	"fmt"
-	"github.com/yourusername/ai-agent-team/internal/claude"
+	"github.com/yourusername/ai-agent-team/internal/llm"
 	"github.com/yourusername/ai-agent-team/internal/models"
 )
 
@@ -12,7 +12,7 @@ type TeamLeaderAgent struct {
 }
 
 // NewTeamLeaderAgent creates a new team leader agent
-func NewTeamLeaderAgent(client *claude.Client) *TeamLeaderAgent {
+func NewTeamLeaderAgent(client llm.Client) *TeamLeaderAgent {
 	systemPrompt := `You are the Team Leader of an AI agent team focused on deep ideation and concept validation.
 
 Your responsibilities:

@@ -5,7 +5,7 @@
 ### Prerequisites
 - Go 1.21+
 - Git
-- Anthropic API key
+- An LLM API key (Anthropic, OpenAI, or NetApp LLM Proxy)
 
 ### Clone and Build
 ```bash
@@ -20,8 +20,10 @@ make build
 # Check formatting and vet
 make check
 
-# Run specific binary
-export ANTHROPIC_API_KEY="your-key"
+# Run specific binary (set at least one LLM key)
+export ANTHROPIC_API_KEY="your-key"       # Anthropic Claude
+# or: export OPENAI_API_KEY="your-key"    # OpenAI-compatible
+# or: export LLMPROXY_KEY="user=me&key=sk_xxx"  # NetApp LLM Proxy
 make run-tui
 ```
 
@@ -30,7 +32,7 @@ make run-tui
 ### High-Level Overview
 
 ```
-User Input → Orchestrator → Agents → Claude API
+User Input → Orchestrator → Agents → LLM Backend (Anthropic / OpenAI / LLM Proxy)
                 ↓              ↓
             Discussion ←  Messages → Report
 ```
@@ -54,12 +56,25 @@ User Input → Orchestrator → Agents → Claude API
 - Team configurations (Standard, Extended, Full)
 - Agent roles and types
 
-**4. Claude Client (`internal/claude/`)**
-- API wrapper for Anthropic
-- Message handling
-- Token management
+**4. LLM Interface (`internal/llm/`)**
+- Backend-agnostic `LLMClient` interface
+- Common request/response types shared by all backends
 
-**5. TUI (`internal/tui/`)**
+**5. Claude Client (`internal/claude/`)**
+- Anthropic Claude API implementation of `LLMClient`
+- Message handling and token management
+
+**6. OpenAI Client (`internal/openai/`)**
+- OpenAI-compatible API implementation of `LLMClient`
+- Also used for NetApp LLM Proxy via `LLM_BASE_URL`
+- HTTP timeout of 120s for long-running completions
+
+**7. LLM Factory (`internal/llmfactory/`)**
+- Auto-detects backend from environment variables
+- Instantiates the correct `LLMClient` implementation
+- Supports `LLM_BACKEND` override and `LLM_MODEL` / `LLM_BASE_URL` overrides
+
+**8. TUI (`internal/tui/`)**
 - Bubbletea model for reactive UI
 - Lipgloss styling
 - Real-time updates via messages
@@ -221,16 +236,22 @@ func MyCustomTeamConfig() *TeamConfig {
 }
 ```
 
-### Claude API Settings
+### LLM API Settings
 
-Modify in `internal/claude/client.go`:
+The LLM backend is selected automatically based on which environment variable is set:
 
-```go
-const (
-    DefaultModel  = "claude-sonnet-4-20250514"
-    DefaultTokens = 4096
-)
-```
+| Variable | Backend |
+|----------|---------|
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_KEY` | Anthropic Claude |
+| `LLMPROXY_KEY` | NetApp LLM Proxy (format: `user=username&key=sk_xxx`) |
+| `OPENAI_API_KEY` / `LLM_API_KEY` | OpenAI-compatible |
+
+Override controls:
+- `LLM_BACKEND` — force a specific backend (`anthropic`, `openai`, `llmproxy`)
+- `LLM_MODEL` — override the default model name
+- `LLM_BASE_URL` — override the API endpoint URL
+
+Default model settings are in the respective client packages (`internal/claude/`, `internal/openai/`).
 
 ## Testing Strategy
 
@@ -285,8 +306,9 @@ const (
 
 **1. Agent not responding**
 - Check system prompt
-- Verify API key is valid
+- Verify API key is valid for the configured backend
 - Check token limits
+- Verify `LLM_BACKEND` / `LLM_BASE_URL` if using non-default backend
 
 **2. TUI not updating**
 - Ensure messages are being sent
@@ -348,7 +370,10 @@ ai-agent-team/
 │   ├── agents/            # All agent implementations
 │   ├── orchestrator/      # Discussion coordination
 │   ├── models/           # Data structures
-│   ├── claude/           # API client
+│   ├── llm/              # Backend-agnostic LLM interface
+│   ├── claude/           # Anthropic Claude client
+│   ├── openai/           # OpenAI-compatible client
+│   ├── llmfactory/       # Auto-detect & create LLM client
 │   └── tui/              # Terminal UI
 ├── bin/                  # Built binaries (gitignored)
 ├── Makefile             # Build automation
@@ -385,6 +410,7 @@ git push origin feature/your-branch
 - [Go Documentation](https://go.dev/doc/)
 - [Bubbletea Tutorial](https://github.com/charmbracelet/bubbletea)
 - [Anthropic API Docs](https://docs.anthropic.com/)
+- [OpenAI API Docs](https://platform.openai.com/docs/)
 - [Conventional Commits](https://www.conventionalcommits.org/)
 
 ## Questions?

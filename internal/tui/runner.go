@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/yourusername/ai-agent-team/internal/llm"
 	"github.com/yourusername/ai-agent-team/internal/models"
 	"github.com/yourusername/ai-agent-team/internal/orchestrator"
 )
@@ -16,7 +17,7 @@ var discussionResult struct {
 }
 
 // Run starts the TUI and runs the discussion
-func Run(apiKey string, config *models.TeamConfig, topic string) (*models.Discussion, error) {
+func Run(client llm.Client, config *models.TeamConfig, topic string) (*models.Discussion, error) {
 	// Create the TUI model
 	m := NewModel(config, topic)
 
@@ -24,7 +25,7 @@ func Run(apiKey string, config *models.TeamConfig, topic string) (*models.Discus
 	p := tea.NewProgram(m)
 
 	// Start the discussion in a goroutine
-	go runDiscussion(p, apiKey, config, topic)
+	go runDiscussion(p, client, config, topic)
 
 	// Run the TUI
 	finalModel, err := p.Run()
@@ -44,9 +45,9 @@ func Run(apiKey string, config *models.TeamConfig, topic string) (*models.Discus
 }
 
 // runDiscussion runs the orchestration and sends updates to the TUI
-func runDiscussion(p *tea.Program, apiKey string, config *models.TeamConfig, topic string) {
+func runDiscussion(p *tea.Program, client llm.Client, config *models.TeamConfig, topic string) {
 	// Create orchestrator
-	orch := orchestrator.NewConfigurableOrchestrator(apiKey, config)
+	orch := orchestrator.NewConfigurableOrchestrator(client, config)
 
 	// Set up progress callback to send updates to TUI
 	orch.OnProgress = func(message string) {
@@ -64,6 +65,19 @@ func runDiscussion(p *tea.Program, apiKey string, config *models.TeamConfig, top
 			})
 		}
 
+		// Detect agent speech (📣 [role] content)
+		if strings.Contains(message, "📣 [") {
+			role, speech := extractSpeech(message)
+			if role != "" {
+				p.Send(AgentUpdateMsg{
+					Role:    role,
+					Status:  "working",
+					Message: "Just spoke",
+					Speech:  speech,
+				})
+			}
+		}
+
 		// Detect agent activity
 		if strings.Contains(message, "contributing") || strings.Contains(message, "working") {
 			role := extractAgentRole(message)
@@ -74,6 +88,23 @@ func runDiscussion(p *tea.Program, apiKey string, config *models.TeamConfig, top
 					Message: extractAgentMessage(message),
 				})
 			}
+		}
+
+		// Detect leader/moderator/ui_creator phase starts
+		if strings.Contains(message, "Team Leader synthesizing") {
+			p.Send(AgentUpdateMsg{Role: "team_leader", Status: "working", Message: "Synthesizing round..."})
+		}
+		if strings.Contains(message, "Final Validation") {
+			p.Send(AgentUpdateMsg{Role: "moderator", Status: "working", Message: "Scoring ideas..."})
+		}
+		if strings.Contains(message, "Final Selection") {
+			p.Send(AgentUpdateMsg{Role: "team_leader", Status: "working", Message: "Selecting best idea..."})
+		}
+		if strings.Contains(message, "Creating Visual Idea Sheet") {
+			p.Send(AgentUpdateMsg{Role: "ui_creator", Status: "working", Message: "Painting the vision..."})
+		}
+		if strings.Contains(message, "Team Leader Kickoff") {
+			p.Send(AgentUpdateMsg{Role: "team_leader", Status: "working", Message: "Setting the direction..."})
 		}
 
 		// Detect idea generation
@@ -206,4 +237,64 @@ func extractAgentMessage(message string) string {
 		return "Evaluating ideas..."
 	}
 	return "Working..."
+}
+
+// extractSpeech parses "📣 [role] speech content" messages
+func extractSpeech(message string) (string, string) {
+	idx := strings.Index(message, "📣 [")
+	if idx < 0 {
+		return "", ""
+	}
+	rest := message[idx+len("📣 ["):]
+	endBracket := strings.Index(rest, "] ")
+	if endBracket < 0 {
+		return "", ""
+	}
+	role := rest[:endBracket]
+	speech := strings.TrimSpace(rest[endBracket+2:])
+	return role, cleanSpeechContent(speech)
+}
+
+// cleanSpeechContent strips JSON artifacts and extracts readable text
+func cleanSpeechContent(text string) string {
+	// If text looks like JSON, extract meaningful parts
+	trimmed := strings.TrimSpace(text)
+	if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+		// Extract titles from JSON-like content
+		var titles []string
+		for _, line := range strings.Split(trimmed, "\n") {
+			line = strings.TrimSpace(line)
+			// Look for "title": "..." patterns
+			if strings.Contains(line, `"title"`) {
+				val := extractJSONValue(line)
+				if val != "" {
+					titles = append(titles, val)
+				}
+			}
+		}
+		if len(titles) > 0 {
+			return "Ideas: " + strings.Join(titles, ", ")
+		}
+		// Fallback: just show first non-brace line
+		for _, line := range strings.Split(trimmed, "\n") {
+			line = strings.TrimSpace(line)
+			if line != "" && line != "{" && line != "}" && line != "[" && line != "]" && !strings.HasPrefix(line, `"`) {
+				return line
+			}
+		}
+		return "Analyzing..."
+	}
+	return text
+}
+
+// extractJSONValue pulls the value from a "key": "value" line
+func extractJSONValue(line string) string {
+	colonIdx := strings.Index(line, ":")
+	if colonIdx < 0 {
+		return ""
+	}
+	val := strings.TrimSpace(line[colonIdx+1:])
+	val = strings.TrimSuffix(val, ",")
+	val = strings.Trim(val, `"`)
+	return val
 }

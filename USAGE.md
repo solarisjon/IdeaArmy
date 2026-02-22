@@ -2,20 +2,39 @@
 
 ## Quick Start
 
-### 1. Set Your API Key
+### 1. Set Your LLM Backend
 
+IdeaArmy supports multiple LLM backends with automatic detection from environment variables.
+
+**Anthropic Claude** (default):
 ```bash
 export ANTHROPIC_API_KEY="your-api-key-here"
 # or
 export ANTHROPIC_KEY="your-api-key-here"
 ```
 
-Or create a `.env` file:
+**NetApp LLM Proxy**:
+```bash
+export LLMPROXY_KEY="user=username&key=sk_xxx"
 ```
-ANTHROPIC_API_KEY=your-api-key-here
+
+**OpenAI-compatible**:
+```bash
+export OPENAI_API_KEY="your-api-key-here"
 # or
-ANTHROPIC_KEY=your-api-key-here
+export LLM_API_KEY="your-api-key-here"
 ```
+
+Or create a `.env` file with any of the above variables.
+
+**Override options** (optional):
+```bash
+export LLM_BACKEND="anthropic"   # Force a specific backend: anthropic, llmproxy, openai
+export LLM_MODEL="gpt-4o"       # Override the default model for the chosen backend
+export LLM_BASE_URL="https://my-endpoint.example.com/v1"  # Override the API endpoint
+```
+
+The backend is auto-detected from whichever API key variable is set. If multiple keys are present, set `LLM_BACKEND` to choose explicitly.
 
 ### 2. Choose Your Interface
 
@@ -166,15 +185,16 @@ Edit the system prompts in:
 
 ### Changing the Model
 
-Edit `internal/claude/client.go`:
-```go
-const DefaultModel = "claude-sonnet-4-20250514"
+Set the `LLM_MODEL` environment variable to override the default model for your backend:
+
+```bash
+export LLM_MODEL="claude-sonnet-4-20250514"
 ```
 
-Available models:
-- `claude-sonnet-4-20250514` - Balanced (default)
-- `claude-opus-4-20250514` - Most capable
-- `claude-3-5-sonnet-20241022` - Previous generation
+Default models per backend:
+- **Anthropic**: `claude-sonnet-4-20250514` (also available: `claude-opus-4-20250514`, `claude-3-5-sonnet-20241022`)
+- **NetApp LLM Proxy**: determined by proxy configuration
+- **OpenAI-compatible**: `gpt-4o` (or any model supported by your endpoint)
 
 ### Adjusting Temperature
 
@@ -204,8 +224,15 @@ func (o *Orchestrator) runPhase6_CustomPhase() error {
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ANTHROPIC_API_KEY` or `ANTHROPIC_KEY` | (required) | Your Anthropic API key |
+| `ANTHROPIC_API_KEY` or `ANTHROPIC_KEY` | — | Anthropic Claude API key (auto-selects Anthropic backend) |
+| `LLMPROXY_KEY` | — | NetApp LLM Proxy key, format: `user=username&key=sk_xxx` (auto-selects LLM Proxy backend) |
+| `OPENAI_API_KEY` or `LLM_API_KEY` | — | OpenAI-compatible API key (auto-selects OpenAI backend) |
+| `LLM_BACKEND` | (auto-detected) | Force a specific backend: `anthropic`, `llmproxy`, `openai` |
+| `LLM_MODEL` | (per-backend default) | Override the default model |
+| `LLM_BASE_URL` | (per-backend default) | Override the API endpoint URL |
 | `PORT` | `8080` | Web server port (server mode only) |
+
+At least one API key variable must be set (via environment or `.env` file). The web server's API key field is optional — if omitted, the server falls back to the API key from environment variables.
 
 ## Output Files
 
@@ -246,7 +273,7 @@ Each discussion typically uses:
 ## Troubleshooting
 
 ### "Rate limit exceeded"
-Wait a moment and try again. Anthropic has rate limits.
+Wait a moment and try again. Most LLM providers have rate limits.
 
 ### "Context length exceeded"
 Your topic may be too complex. Try breaking it into smaller topics.

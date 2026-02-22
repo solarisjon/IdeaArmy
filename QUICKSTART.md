@@ -2,16 +2,31 @@
 
 ## Setup (30 seconds)
 
-1. **Get your API key** from [Anthropic Console](https://console.anthropic.com/)
+1. **Set an API key** for any supported LLM backend (auto-detected from env vars):
 
-2. **Set it as an environment variable:**
    ```bash
-   export ANTHROPIC_API_KEY="your-api-key-here"
+   # Anthropic Claude (default)
+   export ANTHROPIC_API_KEY="sk-ant-..."
    # or
-   export ANTHROPIC_KEY="your-api-key-here"
+   export ANTHROPIC_KEY="sk-ant-..."
+
+   # NetApp LLM Proxy
+   export LLMPROXY_KEY="user=username&key=sk_xxx"
+
+   # OpenAI-compatible
+   export OPENAI_API_KEY="sk-..."
+   # or
+   export LLM_API_KEY="sk-..."
    ```
 
-3. **Choose your interface:**
+   **Optional overrides:**
+   ```bash
+   export LLM_BACKEND="anthropic"    # Force a specific backend
+   export LLM_MODEL="gpt-4o"        # Override the default model
+   export LLM_BASE_URL="https://..."  # Override the API endpoint
+   ```
+
+2. **Choose your interface:**
 
 ## ✨ Beautiful TUI (Recommended!)
 
@@ -22,11 +37,13 @@
 ```
 
 **What you get:**
+- 🎖️ **"War Room" themed interface** with persona-named agents (Captain Rex, Sparky, The Judge, and more)
 - 🔄 Animated spinners for each agent
 - 📊 Live progress bars
 - 💡 Ideas appearing in real-time
 - 🎨 Color-coded agents
 - ⏱️ Live statistics
+- 🚪 **Auto-exits** when the discussion completes — no need to press 'q'
 - **Visual engagement like never before!**
 
 **Perfect for:** Anyone who wants to *see* the magic happening!
@@ -205,11 +222,11 @@ See `example_v2.go` for complete examples.
 ## Troubleshooting
 
 ### "API key is required"
-Set your environment variable:
+Set an environment variable for any supported backend:
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-# or
-export ANTHROPIC_KEY="sk-ant-..."
+export ANTHROPIC_API_KEY="sk-ant-..."   # Anthropic Claude
+export LLMPROXY_KEY="user=me&key=sk_x"  # NetApp LLM Proxy
+export OPENAI_API_KEY="sk-..."           # OpenAI-compatible
 ```
 
 ### "Permission denied"
@@ -247,8 +264,8 @@ chmod +x bin/cli-v2 bin/server-v2
 **Ready? Let's go!**
 
 ```bash
-# Try the beautiful TUI first!
-export ANTHROPIC_API_KEY="your-key"
+# Try the beautiful TUI first! Set any supported backend key:
+export ANTHROPIC_API_KEY="your-key"   # or LLMPROXY_KEY, OPENAI_API_KEY, etc.
 ./bin/cli-tui
 ```
 

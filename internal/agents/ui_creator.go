@@ -2,7 +2,7 @@ package agents
 
 import (
 	"fmt"
-	"github.com/yourusername/ai-agent-team/internal/claude"
+	"github.com/yourusername/ai-agent-team/internal/llm"
 	"github.com/yourusername/ai-agent-team/internal/models"
 )
 
@@ -12,7 +12,7 @@ type UICreatorAgent struct {
 }
 
 // NewUICreatorAgent creates a new UI creator agent
-func NewUICreatorAgent(client *claude.Client) *UICreatorAgent {
+func NewUICreatorAgent(client llm.Client) *UICreatorAgent {
 	systemPrompt := `You are the Report Generator Agent, specialized in creating comprehensive, professional reports from AI team discussions.
 
 Your responsibilities:
@@ -127,8 +127,8 @@ This is an executive-level strategic report, not a summary slide.
 Return complete, self-contained HTML with embedded CSS.`,
 		discussionContext, detailedContext, input)
 
-	// Use more tokens for comprehensive report generation (8K instead of 4K)
-	response, err := a.QueryWithTokens(query, 8192)
+	// Use more tokens for comprehensive report generation
+	response, err := a.QueryWithTokens(query, 4096)
 	if err != nil {
 		return nil, fmt.Errorf("report generator query failed: %w", err)
 	}

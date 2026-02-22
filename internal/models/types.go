@@ -27,17 +27,17 @@ type Idea struct {
 
 // Discussion represents the complete discussion session
 type Discussion struct {
-	ID          string    `json:"id"`
-	Topic       string    `json:"topic"`
-	StartTime   time.Time `json:"start_time"`
-	EndTime     time.Time `json:"end_time"`
-	Messages    []Message `json:"messages"`
-	Ideas       []Idea    `json:"ideas"`
-	FinalIdea   *Idea     `json:"final_idea"`
-	Summary     string    `json:"summary"`
-	Status      string    `json:"status"` // "running", "completed", "failed"
-	Round       int       `json:"round"`  // Current discussion round
-	MaxRounds   int       `json:"max_rounds"` // Maximum rounds to run
+	ID        string    `json:"id"`
+	Topic     string    `json:"topic"`
+	StartTime time.Time `json:"start_time"`
+	EndTime   time.Time `json:"end_time"`
+	Messages  []Message `json:"messages"`
+	Ideas     []Idea    `json:"ideas"`
+	FinalIdea *Idea     `json:"final_idea"`
+	Summary   string    `json:"summary"`
+	Status    string    `json:"status"`     // "running", "completed", "failed"
+	Round     int       `json:"round"`      // Current discussion round
+	MaxRounds int       `json:"max_rounds"` // Maximum rounds to run
 }
 
 // AgentRole defines the role of an agent
@@ -55,8 +55,8 @@ const (
 
 // AgentResponse represents an agent's response
 type AgentResponse struct {
-	AgentRole AgentRole `json:"agent_role"`
-	Content   string    `json:"content"`
-	Ideas     []Idea    `json:"ideas,omitempty"`
+	AgentRole AgentRole              `json:"agent_role"`
+	Content   string                 `json:"content"`
+	Ideas     []Idea                 `json:"ideas,omitempty"`
 	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }

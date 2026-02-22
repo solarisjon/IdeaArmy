@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yourusername/ai-agent-team/internal/llmfactory"
 	"github.com/yourusername/ai-agent-team/internal/models"
 	"github.com/yourusername/ai-agent-team/internal/orchestrator"
 )
@@ -145,9 +146,9 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         <div class="card">
             <div id="inputForm">
                 <div class="input-group">
-                    <label for="apiKey">Anthropic API Key</label>
-                    <input type="password" id="apiKey" placeholder="sk-ant-...">
-                    <small>Your API key is only used for this session and never stored</small>
+                    <label for="apiKey">API Key (optional if env configured)</label>
+                    <input type="password" id="apiKey" placeholder="Leave blank to use LLMPROXY_KEY / OPENAI_API_KEY from server env">
+                    <small>Only needed if the server doesn't have LLM credentials in its environment</small>
                 </div>
 
                 <div class="input-group">
@@ -217,8 +218,8 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             const topic = document.getElementById('topic').value.trim();
             const teamConfig = document.getElementById('teamConfig').value;
 
-            if (!apiKey || !topic) {
-                alert('Please provide both API key and topic');
+            if (!topic) {
+                alert('Please provide a topic');
                 return;
             }
 
@@ -347,8 +348,8 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.APIKey == "" || req.Topic == "" {
-		respondJSON(w, http.StatusBadRequest, map[string]string{"error": "API key and topic are required"})
+	if req.Topic == "" {
+		respondJSON(w, http.StatusBadRequest, map[string]string{"error": "Topic is required"})
 		return
 	}
 
@@ -363,8 +364,15 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 		config = models.StandardTeamConfig()
 	}
 
+	// Create LLM client from the provided key
+	client, err := llmfactory.NewClientAuto(req.APIKey)
+	if err != nil {
+		respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Failed to create LLM client: %v", err)})
+		return
+	}
+
 	// Create orchestrator
-	orch := orchestrator.NewConfigurableOrchestrator(req.APIKey, config)
+	orch := orchestrator.NewConfigurableOrchestrator(client, config)
 
 	// Set up progress logging
 	orch.OnProgress = func(message string) {

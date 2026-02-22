@@ -14,12 +14,12 @@ type TeamConfig struct {
 	IncludeImplementer bool
 
 	// Discussion settings
-	MaxRounds          int     // Number of discussion rounds
-	MinIdeas           int     // Minimum ideas to generate
-	DeepDive           bool    // Enable deep dive mode with more back-and-forth
+	MaxRounds int  // Number of discussion rounds
+	MinIdeas  int  // Minimum ideas to generate
+	DeepDive  bool // Enable deep dive mode with more back-and-forth
 
 	// Quality settings
-	MinScoreThreshold  float64 // Minimum score for ideas to be considered
+	MinScoreThreshold float64 // Minimum score for ideas to be considered
 }
 
 // DefaultTeamConfig returns a standard team configuration

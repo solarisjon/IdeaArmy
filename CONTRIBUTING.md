@@ -8,7 +8,7 @@ Thank you for your interest in contributing to AI Agent Team!
 
 - Go 1.21 or higher
 - Git
-- Anthropic API key for testing
+- An LLM API key for testing (Anthropic, OpenAI, or NetApp LLM Proxy)
 
 ### Setup
 
@@ -56,8 +56,10 @@ git checkout -b feature/your-feature-name
 # Build all binaries
 make build  # or manually build each binary
 
-# Test with a real API key
-export ANTHROPIC_API_KEY="your-key"
+# Test with an LLM API key (set at least one)
+export ANTHROPIC_API_KEY="your-key"       # Anthropic Claude
+# or: export OPENAI_API_KEY="your-key"    # OpenAI-compatible
+# or: export LLMPROXY_KEY="user=me&key=sk_xxx"  # NetApp LLM Proxy
 ./bin/cli-tui
 ```
 
@@ -222,7 +224,10 @@ ai-agent-team/
 │   ├── agents/           # Agent implementations
 │   ├── orchestrator/     # Discussion orchestration
 │   ├── models/           # Data models
-│   ├── claude/           # API client
+│   ├── llm/              # Backend-agnostic LLM interface
+│   ├── claude/           # Anthropic Claude client
+│   ├── openai/           # OpenAI-compatible client
+│   ├── llmfactory/       # Auto-detect & create LLM client
 │   └── tui/              # Terminal UI
 ├── .github/              # GitHub workflows
 ├── bin/                  # Built binaries (gitignored)

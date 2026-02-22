@@ -4,7 +4,9 @@ The AI Agent Team now includes a beautiful, dynamic Terminal User Interface buil
 
 ### Features
 
-**Real-time Agent Visualization**
+**Real-time Agent Visualization — "War Room" Theme**
+- 🎖️ Persona-named agents with distinct personalities
+- 💬 Speech bubbles showing each agent's contributions
 - 🔄 Live spinners showing which agents are actively working
 - ✅ Checkmarks when agents complete their tasks
 - 🎨 Color-coded agents with unique icons
@@ -30,7 +32,11 @@ The AI Agent Team now includes a beautiful, dynamic Terminal User Interface buil
 ### Quick Start
 
 ```bash
-export ANTHROPIC_API_KEY="your-key"
+# Set at least one LLM API key:
+export ANTHROPIC_API_KEY="your-key"       # Anthropic Claude
+# or: export OPENAI_API_KEY="your-key"    # OpenAI-compatible
+# or: export LLMPROXY_KEY="user=me&key=sk_xxx"  # NetApp LLM Proxy
+
 ./bin/cli-tui
 ```
 
@@ -38,25 +44,35 @@ export ANTHROPIC_API_KEY="your-key"
 
 ```
 ╔════════════════════════════════════════════════════════╗
-║   AI Agent Team TUI - Beautiful Terminal Interface    ║
+║            🎖️  WAR ROOM  — AI Agent Team              ║
 ╚════════════════════════════════════════════════════════╝
 
 🤖 AI Agent Team - Collaborative Ideation
 Topic: Your topic here
 
 Team Composition:
-🎯 Team Leader • 💡 Ideation Specialist • 🔍 Moderator • 📚 Researcher • 🤔 Critical Analyst • 🎨 UI Creator
+🎖️ Captain Rex (Leader) • ⚡ Sparky (Ideation) • ⚖️ The Judge (Moderator) • 📚 Doc Sage (Researcher) • 🧐 Nitpick (Critic) • 🔧 Wrench (Implementer) • 🎨 Pixel (UI Creator)
 
 Phase: Exploration & Ideation  Round 1/2
 ████████████████████░░░░ 75%
 
 Agent Status:
-  🎯 Team Leader: ✓ Complete
-  💡 Ideation Specialist: ⠋ Generating creative ideas...
-  🔍 Moderator: Ready
-  📚 Researcher: ⠙ Researching context...
-  🤔 Critical Analyst: Ready
-  🎨 UI Creator: Ready
+  🎖️ Captain Rex: ✓ Complete
+  ⚡ Sparky: ⠋ Generating creative ideas...
+  ⚖️ The Judge: Ready
+  📚 Doc Sage: ⠙ Researching context...
+  🧐 Nitpick: Ready
+  🔧 Wrench: Ready
+  🎨 Pixel: Ready
+
+💬 Speech Bubbles:
+  ┌─ Captain Rex ──────────────────────────────┐
+  │ "Let's focus on sustainability angles..."  │
+  └────────────────────────────────────────────┘
+  ┌─ Sparky ───────────────────────────────────┐
+  │ "What if we combine vertical farming with  │
+  │  AI-driven crop rotation?"                 │
+  └────────────────────────────────────────────┘
 
 💡 Ideas Generated (3):
   • Smart vertical farming system [8.5/10]
@@ -64,15 +80,15 @@ Agent Status:
   • AI-optimized crop rotation [9.1/10]
 
 Recent Activity:
-  → Researcher providing market analysis
-  → Ideation generating new concepts
-  → Team Leader synthesizing Round 1
+  → Doc Sage providing market analysis
+  → Sparky generating new concepts
+  → Captain Rex synthesizing Round 1
 
 ⚡ Running... (2m 34s)
   Ideas: 3 | Messages: 24
-
-Press 'q' to quit
 ```
+
+> **Note:** The TUI automatically exits when the discussion completes — no need to press 'q'.
 
 ### Agent Status Indicators
 
@@ -82,19 +98,19 @@ Press 'q' to quit
 
 ### Color Scheme
 
-Each agent has a unique color for easy identification:
+Each persona agent has a unique color for easy identification:
 
-- 🎯 **Team Leader** - Gold
-- 💡 **Ideation** - Green
-- 🔍 **Moderator** - Blue
-- 📚 **Researcher** - Purple
-- 🤔 **Critic** - Orange
-- 🔧 **Implementer** - Cyan
-- 🎨 **UI Creator** - Pink
+- 🎖️ **Captain Rex** (Leader) - Gold
+- ⚡ **Sparky** (Ideation) - Green
+- ⚖️ **The Judge** (Moderator) - Blue
+- 📚 **Doc Sage** (Researcher) - Purple
+- 🧐 **Nitpick** (Critic) - Orange
+- 🔧 **Wrench** (Implementer) - Cyan
+- 🎨 **Pixel** (UI Creator) - Pink
 
 ### Controls
 
-- **q** or **Ctrl+C** - Quit the application
+- **Ctrl+C** - Force-quit the application (the TUI auto-exits on completion)
 
 ### Phases
 
@@ -181,7 +197,7 @@ Once the TUI finishes, you'll see:
 **TUI freezes**
 - The agents are working! It can take several minutes
 - Watch for the timer and progress bar updates
-- Press 'q' to quit if needed (progress will be lost)
+- Press Ctrl+C to force-quit if needed (progress will be lost)
 
 ### Why Use the TUI?
 

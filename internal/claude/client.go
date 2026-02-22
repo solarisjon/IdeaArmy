@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+
+	"github.com/yourusername/ai-agent-team/internal/llm"
 )
 
 const (
@@ -40,14 +42,11 @@ func NewClient(apiKey string) *Client {
 	}
 }
 
-// Message represents a message in the conversation
-type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
+// Message is an alias for the portable llm.Message type.
+type Message = llm.Message
 
-// Request represents an API request
-type Request struct {
+// apiRequest represents an API request to the Anthropic API.
+type apiRequest struct {
 	Model       string    `json:"model"`
 	MaxTokens   int       `json:"max_tokens"`
 	Messages    []Message `json:"messages"`
@@ -80,7 +79,7 @@ func (c *Client) SendMessage(messages []Message, systemPrompt string, temperatur
 
 // SendMessageWithTokens sends a message with custom max tokens
 func (c *Client) SendMessageWithTokens(messages []Message, systemPrompt string, temperature float64, maxTokens int) (string, error) {
-	req := Request{
+	req := apiRequest{
 		Model:       c.Model,
 		MaxTokens:   maxTokens,
 		Messages:    messages,

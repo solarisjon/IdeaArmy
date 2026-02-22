@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Added — Multi-Backend LLM Support & War Room TUI
+
+#### Multi-Backend LLM Support (Anthropic, OpenAI, NetApp LLM Proxy)
+- **New package: `internal/llm/`** — Backend-agnostic `LLMClient` interface and shared types
+- **New package: `internal/openai/`** — OpenAI-compatible API client with 120s HTTP timeout
+- **New package: `internal/llmfactory/`** — Auto-detects backend from environment and instantiates the correct client
+- Environment variables for backend selection:
+  - `ANTHROPIC_API_KEY` / `ANTHROPIC_KEY` → Anthropic Claude
+  - `LLMPROXY_KEY` → NetApp LLM Proxy (format: `user=username&key=sk_xxx`)
+  - `OPENAI_API_KEY` / `LLM_API_KEY` → OpenAI-compatible
+  - `LLM_BACKEND` forces backend, `LLM_MODEL` overrides model, `LLM_BASE_URL` overrides endpoint
+
+#### War Room TUI Redesign
+- **Persona-named agents:** Captain Rex (Leader), Sparky (Ideation), The Judge (Moderator), Doc Sage (Researcher), Nitpick (Critic), Wrench (Implementer), Pixel (UI Creator)
+- **Speech bubbles** showing each agent's contributions in the terminal
+- **Auto-exit** after discussion completes (no more pressing 'q' to quit)
+
+#### Other Improvements
+- Server HTML updated — API key field is now optional
+- HTTP timeout (120s) added to OpenAI client for long-running completions
+- Visualization errors are now non-fatal (discussion continues on failure)
+
 ### Added - February 21, 2025
 
 #### Comprehensive Strategic Reports

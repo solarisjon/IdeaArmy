@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/yourusername/ai-agent-team/internal/claude"
+	"github.com/yourusername/ai-agent-team/internal/llm"
 	"github.com/yourusername/ai-agent-team/internal/models"
 	"strings"
 )
@@ -15,7 +15,7 @@ type IdeationAgent struct {
 }
 
 // NewIdeationAgent creates a new ideation agent
-func NewIdeationAgent(client *claude.Client) *IdeationAgent {
+func NewIdeationAgent(client llm.Client) *IdeationAgent {
 	systemPrompt := `You are the Ideation Agent, a creative thinker specialized in generating innovative ideas.
 
 Your responsibilities:

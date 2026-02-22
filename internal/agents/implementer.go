@@ -2,7 +2,7 @@ package agents
 
 import (
 	"fmt"
-	"github.com/yourusername/ai-agent-team/internal/claude"
+	"github.com/yourusername/ai-agent-team/internal/llm"
 	"github.com/yourusername/ai-agent-team/internal/models"
 )
 
@@ -12,7 +12,7 @@ type ImplementerAgent struct {
 }
 
 // NewImplementerAgent creates a new implementer agent
-func NewImplementerAgent(client *claude.Client) *ImplementerAgent {
+func NewImplementerAgent(client llm.Client) *ImplementerAgent {
 	systemPrompt := `You are the Implementer Agent, a practical thinker focused on execution and implementation.
 
 Your responsibilities:

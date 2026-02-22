@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yourusername/ai-agent-team/internal/llmfactory"
 	"github.com/yourusername/ai-agent-team/internal/models"
-	"github.com/yourusername/ai-agent-team/internal/orchestrator"
 	"github.com/yourusername/ai-agent-team/internal/tui"
 )
 
@@ -22,21 +22,21 @@ func main() {
 	fmt.Println("╚════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
-	// Get API key - check both ANTHROPIC_API_KEY and ANTHROPIC_KEY
-	apiKey := os.Getenv("ANTHROPIC_API_KEY")
-	if apiKey == "" {
-		apiKey = os.Getenv("ANTHROPIC_KEY")
-	}
-
-	if apiKey == "" {
-		fmt.Print("Enter your Anthropic API key: ")
+	// Create LLM client (auto-detects backend from env vars)
+	client, err := llmfactory.NewClientAuto("")
+	if err != nil {
+		// Fall back to interactive prompt
+		fmt.Print("Enter your API key: ")
 		reader := bufio.NewReader(os.Stdin)
 		key, _ := reader.ReadString('\n')
-		apiKey = strings.TrimSpace(key)
-	}
-
-	if apiKey == "" {
-		log.Fatal("API key is required. Set ANTHROPIC_API_KEY or ANTHROPIC_KEY environment variable, or enter it when prompted.")
+		apiKey := strings.TrimSpace(key)
+		if apiKey == "" {
+			log.Fatal("API key is required. Set ANTHROPIC_API_KEY, LLMPROXY_KEY, OPENAI_API_KEY, or LLM_API_KEY.")
+		}
+		client, err = llmfactory.NewClientAuto(apiKey)
+		if err != nil {
+			log.Fatalf("Failed to create LLM client: %v", err)
+		}
 	}
 
 	// Choose team configuration
@@ -61,29 +61,23 @@ func main() {
 	time.Sleep(500 * time.Millisecond) // Brief pause for effect
 
 	// Run the TUI-based discussion
-	_, err = tui.Run(apiKey, config, topic)
+	discussion, err := tui.Run(client, config, topic)
 	if err != nil {
 		log.Fatalf("Discussion failed: %v", err)
 	}
 
-	// After TUI completes, run a non-TUI version to get full results
-	fmt.Println("\n📊 Generating final report...")
-	orch := orchestrator.NewConfigurableOrchestrator(apiKey, config)
-
-	// Suppress progress output
-	orch.OnProgress = func(message string) {
-		// Silent
+	// Extract the idea sheet HTML from the discussion results
+	var html string
+	if discussion != nil {
+		for _, msg := range discussion.Messages {
+			if msg.Type == "visualization" {
+				html = msg.Content
+				break
+			}
+		}
 	}
-
-	if err := orch.StartDiscussion(topic); err != nil {
-		log.Printf("Warning: Could not generate final report: %v", err)
-		return
-	}
-
-	discussion := orch.GetDiscussion()
 
 	// Save the idea sheet HTML
-	html := orch.GetIdeaSheetHTML()
 	if html != "" {
 		outputFile := filepath.Join(".", fmt.Sprintf("idea_sheet_%d.html", time.Now().Unix()))
 		if err := os.WriteFile(outputFile, []byte(html), 0644); err != nil {

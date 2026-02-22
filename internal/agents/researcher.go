@@ -2,7 +2,7 @@ package agents
 
 import (
 	"fmt"
-	"github.com/yourusername/ai-agent-team/internal/claude"
+	"github.com/yourusername/ai-agent-team/internal/llm"
 	"github.com/yourusername/ai-agent-team/internal/models"
 )
 
@@ -12,7 +12,7 @@ type ResearcherAgent struct {
 }
 
 // NewResearcherAgent creates a new researcher agent
-func NewResearcherAgent(client *claude.Client) *ResearcherAgent {
+func NewResearcherAgent(client llm.Client) *ResearcherAgent {
 	systemPrompt := `You are the Researcher Agent, a specialist in deep research and factual analysis.
 
 Your responsibilities:

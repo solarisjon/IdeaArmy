@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yourusername/ai-agent-team/internal/llmfactory"
 	"github.com/yourusername/ai-agent-team/internal/models"
 	"github.com/yourusername/ai-agent-team/internal/orchestrator"
 )
@@ -20,21 +21,20 @@ func main() {
 	fmt.Println("╚════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
-	// Get API key - check both ANTHROPIC_API_KEY and ANTHROPIC_KEY
-	apiKey := os.Getenv("ANTHROPIC_API_KEY")
-	if apiKey == "" {
-		apiKey = os.Getenv("ANTHROPIC_KEY")
-	}
-
-	if apiKey == "" {
-		fmt.Print("Enter your Anthropic API key: ")
+	// Create LLM client (auto-detects backend from env vars)
+	client, err := llmfactory.NewClientAuto("")
+	if err != nil {
+		fmt.Print("Enter your API key: ")
 		reader := bufio.NewReader(os.Stdin)
 		key, _ := reader.ReadString('\n')
-		apiKey = strings.TrimSpace(key)
-	}
-
-	if apiKey == "" {
-		log.Fatal("API key is required. Set ANTHROPIC_API_KEY or ANTHROPIC_KEY environment variable, or enter it when prompted.")
+		apiKey := strings.TrimSpace(key)
+		if apiKey == "" {
+			log.Fatal("API key is required. Set ANTHROPIC_API_KEY, LLMPROXY_KEY, OPENAI_API_KEY, or LLM_API_KEY.")
+		}
+		client, err = llmfactory.NewClientAuto(apiKey)
+		if err != nil {
+			log.Fatalf("Failed to create LLM client: %v", err)
+		}
 	}
 
 	// Choose team configuration
@@ -60,7 +60,7 @@ func main() {
 	fmt.Println()
 
 	// Create orchestrator with selected configuration
-	orch := orchestrator.NewConfigurableOrchestrator(apiKey, config)
+	orch := orchestrator.NewConfigurableOrchestrator(client, config)
 
 	// Set up progress callback
 	orch.OnProgress = func(message string) {

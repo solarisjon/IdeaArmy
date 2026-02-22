@@ -10,20 +10,18 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 
+	"github.com/yourusername/ai-agent-team/internal/llm"
+	"github.com/yourusername/ai-agent-team/internal/llmfactory"
 	"github.com/yourusername/ai-agent-team/internal/models"
 	"github.com/yourusername/ai-agent-team/internal/orchestrator"
 )
 
 func main() {
-	// Get API key from environment - check both ANTHROPIC_API_KEY and ANTHROPIC_KEY
-	apiKey := os.Getenv("ANTHROPIC_API_KEY")
-	if apiKey == "" {
-		apiKey = os.Getenv("ANTHROPIC_KEY")
-	}
-	if apiKey == "" {
-		log.Fatal("Please set ANTHROPIC_API_KEY or ANTHROPIC_KEY environment variable")
+	// Create LLM client (auto-detects backend from env vars)
+	client, err := llmfactory.NewClientAuto("")
+	if err != nil {
+		log.Fatalf("Failed to create LLM client: %v\nSet ANTHROPIC_API_KEY, LLMPROXY_KEY, OPENAI_API_KEY, or LLM_API_KEY.", err)
 	}
 
 	fmt.Println("╔════════════════════════════════════════════════════════╗")
@@ -32,15 +30,15 @@ func main() {
 	fmt.Println()
 
 	// Example 1: Using Extended configuration for deeper analysis
-	runExtendedTeamExample(apiKey)
+	runExtendedTeamExample(client)
 
 	// Example 2: Custom configuration for specific use case
 	// Uncomment to try:
-	// runCustomTeamExample(apiKey)
+	// runCustomTeamExample(client)
 }
 
 // Example 1: Extended team with 6 agents and 2 rounds
-func runExtendedTeamExample(apiKey string) {
+func runExtendedTeamExample(client llm.Client) {
 	topic := "Innovative approaches to reduce plastic waste in urban environments"
 
 	// Use the Extended preset: 6 agents, 2 rounds, deep dive mode
@@ -52,7 +50,7 @@ func runExtendedTeamExample(apiKey string) {
 	fmt.Printf("   Rounds: %d\n", config.MaxRounds)
 	fmt.Printf("   Deep Dive: %v\n\n", config.DeepDive)
 
-	orch := orchestrator.NewConfigurableOrchestrator(apiKey, config)
+	orch := orchestrator.NewConfigurableOrchestrator(client, config)
 
 	// Track progress
 	roundsCompleted := 0
@@ -78,22 +76,22 @@ func runExtendedTeamExample(apiKey string) {
 }
 
 // Example 2: Custom team for a technical architecture decision
-func runCustomTeamExample(apiKey string) {
+func runCustomTeamExample(client llm.Client) {
 	topic := "Microservices vs Monolithic architecture for a new SaaS product"
 
 	// Build a custom team focused on technical analysis
 	config := &models.TeamConfig{
-		IncludeTeamLeader:  true,  // Required
-		IncludeIdeation:    true,  // For architecture ideas
-		IncludeModerator:   true,  // For evaluation
-		IncludeResearcher:  true,  // For technology research
-		IncludeCritic:      true,  // For identifying technical risks
-		IncludeImplementer: true,  // For practical implementation planning
-		IncludeUICreator:   true,  // For final visualization
-		MaxRounds:          3,     // Deep exploration
+		IncludeTeamLeader:  true, // Required
+		IncludeIdeation:    true, // For architecture ideas
+		IncludeModerator:   true, // For evaluation
+		IncludeResearcher:  true, // For technology research
+		IncludeCritic:      true, // For identifying technical risks
+		IncludeImplementer: true, // For practical implementation planning
+		IncludeUICreator:   true, // For final visualization
+		MaxRounds:          3,    // Deep exploration
 		MinIdeas:           5,
 		DeepDive:           true,
-		MinScoreThreshold:  7.5,   // High quality bar
+		MinScoreThreshold:  7.5, // High quality bar
 	}
 
 	fmt.Println("\n" + "═"*60)
@@ -103,7 +101,7 @@ func runCustomTeamExample(apiKey string) {
 	fmt.Printf("   Rounds: %d (maximum depth)\n", config.MaxRounds)
 	fmt.Println()
 
-	orch := orchestrator.NewConfigurableOrchestrator(apiKey, config)
+	orch := orchestrator.NewConfigurableOrchestrator(client, config)
 
 	orch.OnProgress = func(message string) {
 		fmt.Println("📢", message)

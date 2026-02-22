@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/yourusername/ai-agent-team/internal/agents"
-	"github.com/yourusername/ai-agent-team/internal/claude"
+	"github.com/yourusername/ai-agent-team/internal/llm"
 	"github.com/yourusername/ai-agent-team/internal/models"
 )
 
@@ -22,9 +22,7 @@ type Orchestrator struct {
 }
 
 // NewOrchestrator creates a new orchestrator with all agents
-func NewOrchestrator(apiKey string) *Orchestrator {
-	client := claude.NewClient(apiKey)
-
+func NewOrchestrator(client llm.Client) *Orchestrator {
 	return &Orchestrator{
 		TeamLeader: agents.NewTeamLeaderAgent(client),
 		Ideation:   agents.NewIdeationAgent(client),

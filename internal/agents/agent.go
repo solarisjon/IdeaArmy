@@ -2,7 +2,7 @@ package agents
 
 import (
 	"fmt"
-	"github.com/yourusername/ai-agent-team/internal/claude"
+	"github.com/yourusername/ai-agent-team/internal/llm"
 	"github.com/yourusername/ai-agent-team/internal/models"
 )
 
@@ -19,7 +19,7 @@ type BaseAgent struct {
 	Role         models.AgentRole
 	Name         string
 	SystemPrompt string
-	Client       *claude.Client
+	Client       llm.Client
 	Temperature  float64
 }
 
@@ -45,7 +45,7 @@ func (a *BaseAgent) Query(query string) (string, error) {
 
 // QueryWithTokens sends a query with custom max tokens
 func (a *BaseAgent) QueryWithTokens(query string, maxTokens int) (string, error) {
-	messages := []claude.Message{
+	messages := []llm.Message{
 		{
 			Role:    "user",
 			Content: query,

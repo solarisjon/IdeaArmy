@@ -3,7 +3,7 @@ package agents
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/yourusername/ai-agent-team/internal/claude"
+	"github.com/yourusername/ai-agent-team/internal/llm"
 	"github.com/yourusername/ai-agent-team/internal/models"
 	"strings"
 )
@@ -14,7 +14,7 @@ type ModeratorAgent struct {
 }
 
 // NewModeratorAgent creates a new moderator agent
-func NewModeratorAgent(client *claude.Client) *ModeratorAgent {
+func NewModeratorAgent(client llm.Client) *ModeratorAgent {
 	systemPrompt := `You are the Moderator/Facilitator Agent, responsible for ensuring idea quality and validity.
 
 Your responsibilities:
@@ -114,7 +114,7 @@ func (a *ModeratorAgent) updateIdeasWithEvaluation(response string, discussion *
 	for i := range discussion.Ideas {
 		for _, eval := range parsed.Evaluations {
 			if discussion.Ideas[i].ID == eval.IdeaID ||
-			   discussion.Ideas[i].Title == eval.IdeaID { // Allow matching by title too
+				discussion.Ideas[i].Title == eval.IdeaID { // Allow matching by title too
 				discussion.Ideas[i].Score = eval.Score
 				discussion.Ideas[i].Pros = eval.Pros
 				discussion.Ideas[i].Cons = eval.Cons

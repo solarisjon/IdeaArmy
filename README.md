@@ -39,12 +39,14 @@ This system orchestrates a team of four specialized AI agents, each with unique 
 - **Rigorous Validation**: All ideas are critically evaluated with scores and feedback
 - **Beautiful Visualizations**: Final ideas are presented in professional HTML format
 - **Dual Interface**: Use via CLI for quick sessions or web UI for richer experience
+- **TUI War Room**: Terminal UI with persona-named agents and a "War Room" theme; auto-exits after completion
+- **Multi-Backend LLM Support**: Works with Anthropic Claude, OpenAI, and NetApp LLM Proxy
 - **Real-time Progress**: Track the discussion as it unfolds
 
 ## Prerequisites
 
 - Go 1.21 or higher
-- Anthropic API key (get one at https://console.anthropic.com/)
+- An API key for at least one supported LLM backend (Anthropic, OpenAI, or NetApp LLM Proxy)
 
 ## Installation
 
@@ -58,11 +60,23 @@ cd ai-agent-team
 go mod download
 ```
 
-3. Set your Anthropic API key:
+3. Set your LLM backend API key (the system auto-detects the backend):
 ```bash
-export ANTHROPIC_API_KEY="your-api-key-here"
-# or
-export ANTHROPIC_KEY="your-api-key-here"
+# Anthropic Claude
+export ANTHROPIC_API_KEY="your-api-key-here"   # or ANTHROPIC_KEY
+
+# NetApp LLM Proxy (OpenAI-compatible)
+export LLMPROXY_KEY="user=username&key=sk_xxx"
+
+# OpenAI-compatible
+export OPENAI_API_KEY="your-api-key-here"       # or LLM_API_KEY
+```
+
+Optional overrides:
+```bash
+export LLM_BACKEND="anthropic"   # Force backend: "anthropic" or "openai"
+export LLM_MODEL="gpt-4o"       # Override default model
+export LLM_BASE_URL="https://..." # Override API endpoint
 ```
 
 ## Usage
@@ -154,15 +168,30 @@ ai-agent-team/
 
 ### Environment Variables
 
-- `ANTHROPIC_API_KEY` or `ANTHROPIC_KEY` - Your Anthropic API key (required)
+**LLM Backend (auto-detected from whichever key is set):**
+
+| Variable | Description |
+|---|---|
+| `ANTHROPIC_API_KEY` or `ANTHROPIC_KEY` | Anthropic Claude backend |
+| `LLMPROXY_KEY` | NetApp LLM Proxy (OpenAI-compatible). Format: `user=username&key=sk_xxx` |
+| `OPENAI_API_KEY` or `LLM_API_KEY` | OpenAI-compatible backend |
+| `LLM_BACKEND` | Force backend: `anthropic` or `openai` |
+| `LLM_MODEL` | Override default model (default: `claude-sonnet-4-20250514` for Anthropic, `gpt-4o` for OpenAI) |
+| `LLM_BASE_URL` | Override API endpoint (default for OpenAI: `https://llm-proxy-api.ai.eng.netapp.com/v1`) |
+
+**Other:**
+
 - `PORT` - Server port (default: 8080, web mode only)
 
 ### Model Configuration
 
-By default, the system uses `claude-sonnet-4-20250514`. You can change this in `internal/claude/client.go`:
+The default model depends on the active backend:
+- **Anthropic**: `claude-sonnet-4-20250514`
+- **OpenAI / LLM Proxy**: `gpt-4o`
 
-```go
-const DefaultModel = "your-preferred-model"
+Override with the `LLM_MODEL` environment variable:
+```bash
+export LLM_MODEL="claude-haiku-4-20250514"
 ```
 
 ### Agent Personalities
@@ -179,7 +208,7 @@ Each agent has a customizable system prompt. To modify agent behavior, edit the 
 - `POST /api/start` - Start a new discussion
   ```json
   {
-    "api_key": "your-key",
+    "api_key": "your-key (optional — falls back to server environment)",
     "topic": "your topic"
   }
   ```
@@ -214,9 +243,10 @@ When discussing "Innovative solutions for urban vertical farming", the system mi
 ## Troubleshooting
 
 ### "API error" messages
-- Verify your API key is correct
-- Check your Anthropic account has available credits
+- Verify your API key is correct and matches the expected backend
+- Check your account has available credits
 - Ensure you have internet connectivity
+- If using LLM Proxy, verify the `LLMPROXY_KEY` format: `user=username&key=sk_xxx`
 
 ### "No ideas generated"
 - Try making your topic more specific
@@ -250,9 +280,9 @@ This is a demonstration project. Feel free to fork and customize for your needs!
 
 Built with:
 - Go programming language
-- Anthropic Claude API
+- Multi-backend LLM support (Anthropic Claude, OpenAI, NetApp LLM Proxy)
 - Modern web standards (HTML5, CSS3, JavaScript)
 
 ---
 
-**Note**: This system makes API calls to Anthropic's Claude service. Usage incurs costs based on Anthropic's pricing. Monitor your API usage accordingly.
+**Note**: This system makes API calls to your configured LLM backend. Usage may incur costs based on the provider's pricing. Monitor your API usage accordingly.

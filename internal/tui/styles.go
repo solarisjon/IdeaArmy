@@ -2,6 +2,31 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
+// AgentPersona holds the fun identity for each agent role
+type AgentPersona struct {
+	Name    string
+	Icon    string
+	Tagline string
+	Color   lipgloss.Color
+}
+
+var agentPersonas = map[string]AgentPersona{
+	"team_leader": {Name: "Captain Rex", Icon: "🎖️", Tagline: "rallying the troops", Color: lipgloss.Color("#FFD700")},
+	"ideation":    {Name: "Sparky", Icon: "⚡", Tagline: "igniting ideas", Color: lipgloss.Color("#10B981")},
+	"moderator":   {Name: "The Judge", Icon: "⚖️", Tagline: "keeping order", Color: lipgloss.Color("#3B82F6")},
+	"researcher":  {Name: "Doc Sage", Icon: "📖", Tagline: "digging deep", Color: lipgloss.Color("#8B5CF6")},
+	"critic":      {Name: "Nitpick", Icon: "🧐", Tagline: "poking holes", Color: lipgloss.Color("#F59E0B")},
+	"implementer": {Name: "Wrench", Icon: "🔩", Tagline: "making it real", Color: lipgloss.Color("#06B6D4")},
+	"ui_creator":  {Name: "Pixel", Icon: "🎨", Tagline: "painting the vision", Color: lipgloss.Color("#EC4899")},
+}
+
+func getPersona(role string) AgentPersona {
+	if p, ok := agentPersonas[role]; ok {
+		return p
+	}
+	return AgentPersona{Name: role, Icon: "🤖", Tagline: "working", Color: gray}
+}
+
 var (
 	// Color palette
 	purple    = lipgloss.Color("#7C3AED")
@@ -12,13 +37,14 @@ var (
 	gray      = lipgloss.Color("#6B7280")
 	lightGray = lipgloss.Color("#9CA3AF")
 	white     = lipgloss.Color("#FFFFFF")
+	darkGray  = lipgloss.Color("#374151")
 
 	// Base styles
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(purple).
 			MarginTop(1).
-			MarginBottom(1)
+			MarginBottom(0)
 
 	subtitleStyle = lipgloss.NewStyle().
 			Foreground(blue).
@@ -71,6 +97,12 @@ var (
 			BorderForeground(green).
 			Padding(1, 2)
 
+	// Speech bubble style
+	speechBubbleStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(gray).
+				Padding(0, 1)
+
 	// Status styles
 	statusRunningStyle = lipgloss.NewStyle().
 				Foreground(yellow).
@@ -97,46 +129,11 @@ var (
 			Bold(true)
 )
 
-// Agent role colors
+// Backward compat helpers used elsewhere
 func getAgentColor(role string) lipgloss.Color {
-	switch role {
-	case "team_leader":
-		return lipgloss.Color("#FFD700") // Gold
-	case "ideation":
-		return lipgloss.Color("#10B981") // Green
-	case "moderator":
-		return lipgloss.Color("#3B82F6") // Blue
-	case "researcher":
-		return lipgloss.Color("#8B5CF6") // Purple
-	case "critic":
-		return lipgloss.Color("#F59E0B") // Orange
-	case "implementer":
-		return lipgloss.Color("#06B6D4") // Cyan
-	case "ui_creator":
-		return lipgloss.Color("#EC4899") // Pink
-	default:
-		return gray
-	}
+	return getPersona(role).Color
 }
 
-// Get agent icon
 func getAgentIcon(role string) string {
-	switch role {
-	case "team_leader":
-		return "🎯"
-	case "ideation":
-		return "💡"
-	case "moderator":
-		return "🔍"
-	case "researcher":
-		return "📚"
-	case "critic":
-		return "🤔"
-	case "implementer":
-		return "🔧"
-	case "ui_creator":
-		return "🎨"
-	default:
-		return "🤖"
-	}
+	return getPersona(role).Icon
 }
