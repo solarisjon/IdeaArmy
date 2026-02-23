@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/yourusername/ai-agent-team/internal/llm"
 )
@@ -38,7 +39,7 @@ func NewClient(apiKey string) *Client {
 		APIKey:  apiKey,
 		Model:   DefaultModel,
 		BaseURL: DefaultAPIURL,
-		client:  &http.Client{},
+		client:  llm.NewHTTPClient(120 * time.Second),
 	}
 }
 
