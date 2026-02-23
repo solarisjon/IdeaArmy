@@ -6,12 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/yourusername/ai-agent-team/internal/llm"
 )
-
-const defaultTimeout = 120 * time.Second
 
 // Client implements llm.Client for OpenAI-compatible APIs.
 type Client struct {
@@ -28,7 +25,7 @@ func NewClient(apiKey, baseURL, model string) *Client {
 		APIKey:  apiKey,
 		Model:   model,
 		BaseURL: baseURL,
-		client:  llm.NewHTTPClient(defaultTimeout),
+		client:  llm.NewHTTPClient(llm.DefaultTimeout),
 	}
 }
 
