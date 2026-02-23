@@ -72,6 +72,7 @@ start_container() {
     local env_args=(
         -e LLM_MODEL="$LLM_MODEL"
         -e LLM_BASE_URL="$LLM_BASE_URL"
+        -e LLM_SKIP_TLS_VERIFY="${LLM_SKIP_TLS_VERIFY:-true}"
         -e HTTPS_PROXY="$HTTPS_PROXY"
         -e PORT="$APP_PORT"
         -e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
