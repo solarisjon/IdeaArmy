@@ -12,6 +12,18 @@ import (
 	"github.com/yourusername/ai-agent-team/internal/models"
 )
 
+// botIdleQuips are fun rotating messages shown when bots are idle
+var botIdleQuips = []string{
+	"dreaming of electric sheep...",
+	"buffering creativity...",
+	"downloading inspiration...",
+	"calibrating idea sensors...",
+	"recharging brain cells...",
+	"defragmenting thoughts...",
+	"compiling brilliance...",
+	"syncing with the cloud...",
+}
+
 // AgentState represents the current state of an agent
 type AgentState struct {
 	Role      string
@@ -108,7 +120,7 @@ func NewModel(config *models.TeamConfig, topic string) Model {
 	roles := config.GetActiveAgentRoles()
 	for _, role := range roles {
 		s := spinner.New()
-		s.Spinner = spinner.Dot
+		s.Spinner = spinner.Moon
 		s.Style = spinnerStyle
 
 		agents[string(role)] = &AgentState{
@@ -254,17 +266,17 @@ func (m Model) View() string {
 
 	// Footer
 	if m.Status == "running" || m.Status == "initializing" {
-		sections = append(sections, systemMessageStyle.Render("  Press 'q' to quit"))
+		sections = append(sections, systemMessageStyle.Render("  Press 'q' to power down"))
 	} else if m.Status == "complete" {
-		sections = append(sections, systemMessageStyle.Render("  Press 'q' to exit"))
+		sections = append(sections, systemMessageStyle.Render("  Press 'q' to power down"))
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
 func (m Model) renderHeader() string {
-	title := titleStyle.Render("⚔️  The War Room")
-	topic := subtitleStyle.Render("  Mission: ") + m.Topic
+	title := titleStyle.Render("🤖  The Idea Factory")
+	topic := subtitleStyle.Render("  Bot Mission: ") + m.Topic
 	return lipgloss.JoinVertical(lipgloss.Left, title, topic)
 }
 
@@ -274,7 +286,7 @@ func (m Model) renderTeam() string {
 }
 
 func (m Model) renderProgress() string {
-	phaseText := phaseStyle.Render(fmt.Sprintf("  ⚙ %s", m.CurrentPhase))
+	phaseText := phaseStyle.Render(fmt.Sprintf("  🔧 %s", m.CurrentPhase))
 	roundText := fmt.Sprintf("Round %d/%d", m.CurrentRound, m.TotalRounds)
 
 	progressBar := m.ProgressBar.ViewAs(m.OverallProgress)
@@ -291,11 +303,11 @@ func (m Model) renderWarRoom() string {
 
 	// Calculate card width — fit 2 per row with some padding
 	cardWidth := (m.Width - 8) / 2
-	if cardWidth < 30 {
-		cardWidth = 30
+	if cardWidth < 40 {
+		cardWidth = 40
 	}
-	if cardWidth > 50 {
-		cardWidth = 50
+	if cardWidth > 100 {
+		cardWidth = 100
 	}
 
 	var cards []string
@@ -333,34 +345,44 @@ func (m Model) renderAgentCard(agent *AgentState, width int) string {
 	case "complete":
 		statusIndicator = checkmarkStyle.Render("✓")
 	default:
-		statusIndicator = lipgloss.NewStyle().Foreground(gray).Render("○")
+		statusIndicator = lipgloss.NewStyle().Foreground(robotGray).Render("○")
 	}
 
 	header := fmt.Sprintf("%s %s %s", persona.Icon, nameStyle.Render(persona.Name), statusIndicator)
 
 	// Speech bubble content
 	bubbleWidth := width - 4
-	if bubbleWidth < 20 {
-		bubbleWidth = 20
+	if bubbleWidth < 36 {
+		bubbleWidth = 36
 	}
 
+	const bubbleLines = 6
 	var speechContent string
 	switch agent.Status {
 	case "working":
 		if agent.Speech != "" {
-			speechContent = truncateText(agent.Speech, bubbleWidth, 3)
+			speechContent = truncateText(agent.Speech, bubbleWidth, bubbleLines)
 		} else {
-			speechContent = lipgloss.NewStyle().Foreground(yellow).Italic(true).Render("🗣️ " + agent.Message)
+			speechContent = lipgloss.NewStyle().Foreground(brightYellow).Italic(true).Render("🗣️ " + agent.Message)
 		}
 	case "complete":
 		if agent.Speech != "" {
-			speechContent = truncateText(agent.Speech, bubbleWidth, 3)
+			speechContent = truncateText(agent.Speech, bubbleWidth, bubbleLines)
 		} else {
-			speechContent = lipgloss.NewStyle().Foreground(green).Render("✅ Done")
+			speechContent = lipgloss.NewStyle().Foreground(neonMint).Render("🙌 High-five!")
 		}
 	default:
-		speechContent = lipgloss.NewStyle().Foreground(gray).Italic(true).Render("💤 " + persona.Tagline + "...")
+		speechContent = lipgloss.NewStyle().Foreground(robotGray).Italic(true).Render("😴 " + persona.Tagline + "...")
 	}
+
+	// Pad content to fill the box height so all cards render uniformly
+	lines := strings.Split(speechContent, "\n")
+	quipStyle := lipgloss.NewStyle().Foreground(robotGray).Italic(true)
+	for len(lines) < bubbleLines {
+		qi := (len(lines) + int(agent.Role[0])) % len(botIdleQuips)
+		lines = append(lines, quipStyle.Render("  "+botIdleQuips[qi]))
+	}
+	speechContent = strings.Join(lines[:bubbleLines], "\n")
 
 	bubble := speechBubbleStyle.
 		Copy().
@@ -377,8 +399,8 @@ func (m Model) renderAgents() string {
 }
 
 func (m Model) renderIdeas() string {
-	header := lipgloss.NewStyle().Foreground(green).Bold(true).
-		Render(fmt.Sprintf("  📋 Ideas on the Board (%d)", len(m.Ideas)))
+	header := lipgloss.NewStyle().Foreground(neonMint).Bold(true).
+		Render(fmt.Sprintf("  📋 Idea Conveyor Belt (%d)", len(m.Ideas)))
 
 	var ideaLines []string
 	start := 0
@@ -411,7 +433,7 @@ func (m Model) renderIdeas() string {
 }
 
 func (m Model) renderMessages() string {
-	header := lipgloss.NewStyle().Foreground(lightGray).Italic(true).Render("Recent Activity:")
+	header := lipgloss.NewStyle().Foreground(robotGray).Italic(true).Render("Bot Chatter:")
 
 	var msgLines []string
 	for _, msg := range m.Messages {
@@ -426,18 +448,18 @@ func (m Model) renderStatus() string {
 
 	switch m.Status {
 	case "initializing":
-		statusLine = statusRunningStyle.Render("  ⏳ Assembling the team...")
+		statusLine = statusRunningStyle.Render("  ⏳ Powering up the bots...")
 	case "running":
 		elapsed := time.Since(m.StartTime)
-		statusLine = statusRunningStyle.Render(fmt.Sprintf("  ⚡ Discussion in progress... (%s)", formatDuration(elapsed)))
+		statusLine = statusRunningStyle.Render(fmt.Sprintf("  ⚡ Bots are brainstorming! (%s)", formatDuration(elapsed)))
 	case "complete":
 		duration := m.EndTime.Sub(m.StartTime)
-		statusLine = statusCompleteStyle.Render(fmt.Sprintf("  ✅ Mission accomplished! (%s)", formatDuration(duration)))
+		statusLine = statusCompleteStyle.Render(fmt.Sprintf("  🙌 Bots nailed it! (%s)", formatDuration(duration)))
 	case "error":
 		statusLine = statusErrorStyle.Render(fmt.Sprintf("  ❌ Error: %s", m.ErrorMessage))
 	}
 
-	stats := fmt.Sprintf("  💡 %d ideas | 📨 %d messages", m.TotalIdeas, m.TotalMessages)
+	stats := fmt.Sprintf("  💡 %d ideas zapped | 📨 %d transmissions", m.TotalIdeas, m.TotalMessages)
 
 	return lipgloss.JoinVertical(lipgloss.Left, "", statusLine, systemMessageStyle.Render(stats))
 }

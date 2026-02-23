@@ -11,59 +11,60 @@ type AgentPersona struct {
 }
 
 var agentPersonas = map[string]AgentPersona{
-	"team_leader": {Name: "Captain Rex", Icon: "🎖️", Tagline: "rallying the troops", Color: lipgloss.Color("#FFD700")},
-	"ideation":    {Name: "Sparky", Icon: "⚡", Tagline: "igniting ideas", Color: lipgloss.Color("#10B981")},
-	"moderator":   {Name: "The Judge", Icon: "⚖️", Tagline: "keeping order", Color: lipgloss.Color("#3B82F6")},
-	"researcher":  {Name: "Doc Sage", Icon: "📖", Tagline: "digging deep", Color: lipgloss.Color("#8B5CF6")},
-	"critic":      {Name: "Nitpick", Icon: "🧐", Tagline: "poking holes", Color: lipgloss.Color("#F59E0B")},
-	"implementer": {Name: "Wrench", Icon: "🔩", Tagline: "making it real", Color: lipgloss.Color("#06B6D4")},
-	"ui_creator":  {Name: "Pixel", Icon: "🎨", Tagline: "painting the vision", Color: lipgloss.Color("#EC4899")},
+	"team_leader": {Name: "Commander Bleep", Icon: "🤖", Tagline: "beep-boop, let's rally!", Color: lipgloss.Color("#FF6B6B")},
+	"ideation":    {Name: "Sparx", Icon: "💡", Tagline: "zapping up wild ideas", Color: lipgloss.Color("#51E898")},
+	"moderator":   {Name: "Balancebot", Icon: "🔮", Tagline: "keeping the circuits aligned", Color: lipgloss.Color("#7B68EE")},
+	"researcher":  {Name: "Digger-3000", Icon: "🔍", Tagline: "scanning all known databases", Color: lipgloss.Color("#00D4FF")},
+	"critic":      {Name: "Glitchy", Icon: "👾", Tagline: "poking the logic boards", Color: lipgloss.Color("#FFD93D")},
+	"implementer": {Name: "Bolt", Icon: "🔧", Tagline: "tightening the bolts", Color: lipgloss.Color("#FF8C42")},
+	"ui_creator":  {Name: "Doodlebot", Icon: "🎨", Tagline: "painting pixels with love", Color: lipgloss.Color("#FF6BC1")},
 }
 
 func getPersona(role string) AgentPersona {
 	if p, ok := agentPersonas[role]; ok {
 		return p
 	}
-	return AgentPersona{Name: role, Icon: "🤖", Tagline: "working", Color: gray}
+	return AgentPersona{Name: role, Icon: "🤖", Tagline: "booting up", Color: robotGray}
 }
 
 var (
-	// Color palette
-	purple    = lipgloss.Color("#7C3AED")
-	blue      = lipgloss.Color("#3B82F6")
-	green     = lipgloss.Color("#10B981")
-	yellow    = lipgloss.Color("#F59E0B")
-	red       = lipgloss.Color("#EF4444")
-	gray      = lipgloss.Color("#6B7280")
-	lightGray = lipgloss.Color("#9CA3AF")
-	white     = lipgloss.Color("#FFFFFF")
-	darkGray  = lipgloss.Color("#374151")
+	// Candy color palette
+	hotPink      = lipgloss.Color("#FF6BC1")
+	neonMint     = lipgloss.Color("#51E898")
+	electricCyan = lipgloss.Color("#00D4FF")
+	brightYellow = lipgloss.Color("#FFD93D")
+	coral        = lipgloss.Color("#FF6B6B")
+	tangerine    = lipgloss.Color("#FF8C42")
+	slatePurple  = lipgloss.Color("#7B68EE")
+	robotGray    = lipgloss.Color("#8892A0")
+	white        = lipgloss.Color("#FFFFFF")
+	darkGray     = lipgloss.Color("#374151")
 
 	// Base styles
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(purple).
+			Foreground(hotPink).
 			MarginTop(1).
 			MarginBottom(0)
 
 	subtitleStyle = lipgloss.NewStyle().
-			Foreground(blue).
+			Foreground(electricCyan).
 			Bold(true)
 
 	// Agent styles
 	agentActiveStyle = lipgloss.NewStyle().
-				Foreground(green).
+				Foreground(neonMint).
 				Bold(true)
 
 	agentIdleStyle = lipgloss.NewStyle().
-			Foreground(gray)
+			Foreground(robotGray)
 
 	agentCompleteStyle = lipgloss.NewStyle().
-				Foreground(blue)
+				Foreground(electricCyan)
 
 	// Message styles
 	systemMessageStyle = lipgloss.NewStyle().
-				Foreground(lightGray).
+				Foreground(robotGray).
 				Italic(true)
 
 	agentMessageStyle = lipgloss.NewStyle().
@@ -72,60 +73,60 @@ var (
 
 	// Progress styles
 	progressBarStyle = lipgloss.NewStyle().
-				Foreground(purple)
+				Foreground(hotPink)
 
 	phaseStyle = lipgloss.NewStyle().
-			Foreground(yellow).
+			Foreground(brightYellow).
 			Bold(true)
 
 	// Idea styles
 	ideaTitleStyle = lipgloss.NewStyle().
-			Foreground(green).
+			Foreground(neonMint).
 			Bold(true)
 
 	ideaScoreStyle = lipgloss.NewStyle().
-			Foreground(yellow)
+			Foreground(brightYellow)
 
 	// Box styles
 	boxStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(purple).
+			BorderForeground(slatePurple).
 			Padding(0, 1)
 
 	summaryBoxStyle = lipgloss.NewStyle().
 			Border(lipgloss.DoubleBorder()).
-			BorderForeground(green).
+			BorderForeground(neonMint).
 			Padding(1, 2)
 
 	// Speech bubble style
 	speechBubbleStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
-				BorderForeground(gray).
+				BorderForeground(robotGray).
 				Padding(0, 1)
 
 	// Status styles
 	statusRunningStyle = lipgloss.NewStyle().
-				Foreground(yellow).
+				Foreground(brightYellow).
 				Bold(true)
 
 	statusCompleteStyle = lipgloss.NewStyle().
-				Foreground(green).
+				Foreground(neonMint).
 				Bold(true)
 
 	statusErrorStyle = lipgloss.NewStyle().
-				Foreground(red).
+				Foreground(coral).
 				Bold(true)
 
 	// Spinner and indicator styles
 	spinnerStyle = lipgloss.NewStyle().
-			Foreground(purple)
+			Foreground(hotPink)
 
 	checkmarkStyle = lipgloss.NewStyle().
-			Foreground(green).
+			Foreground(neonMint).
 			Bold(true)
 
 	errorMarkStyle = lipgloss.NewStyle().
-			Foreground(red).
+			Foreground(coral).
 			Bold(true)
 )
 

@@ -37,13 +37,13 @@ type webAgentState struct {
 var agentPersonas = map[string]struct {
 	Name, Icon, Tagline, Color string
 }{
-	"team_leader": {"Captain Rex", "🎖️", "rallying the troops", "#FFD700"},
-	"ideation":    {"Sparky", "⚡", "igniting ideas", "#10B981"},
-	"moderator":   {"The Judge", "⚖️", "keeping order", "#3B82F6"},
-	"researcher":  {"Doc Sage", "📖", "digging deep", "#8B5CF6"},
-	"critic":      {"Nitpick", "🧐", "poking holes", "#F59E0B"},
-	"implementer": {"Wrench", "🔩", "making it real", "#06B6D4"},
-	"ui_creator":  {"Pixel", "🎨", "painting the vision", "#EC4899"},
+	"team_leader": {"Commander Bleep", "🤖", "beep-boop, let's rally!", "#FF6B6B"},
+	"ideation":    {"Sparx", "💡", "zapping up wild ideas", "#51E898"},
+	"moderator":   {"Balancebot", "🔮", "keeping the circuits aligned", "#7B68EE"},
+	"researcher":  {"Digger-3000", "🔍", "scanning all known databases", "#00D4FF"},
+	"critic":      {"Glitchy", "👾", "poking the logic boards", "#FFD93D"},
+	"implementer": {"Bolt", "🔧", "tightening the bolts", "#FF8C42"},
+	"ui_creator":  {"Doodlebot", "🎨", "painting pixels with love", "#FF6BC1"},
 }
 
 var (
@@ -63,7 +63,7 @@ func main() {
 	http.HandleFunc("/api/result/", handleResult)
 
 	fmt.Println("╔════════════════════════════════════════════════════════╗")
-	fmt.Println("║   AI Agent Team v2 - War Room Server                   ║")
+	fmt.Println("║   🤖 IdeaArmy — The Idea Factory Server                ║")
 	fmt.Println("╚════════════════════════════════════════════════════════╝")
 	fmt.Printf("\n🌐 Server starting on http://localhost:%s\n", port)
 	fmt.Println()
@@ -74,7 +74,7 @@ func main() {
 func newAgentState(role string) *webAgentState {
 	p, ok := agentPersonas[role]
 	if !ok {
-		return &webAgentState{Role: role, Name: role, Icon: "🤖", Tagline: "working", Color: "#6B7280", Status: "idle"}
+		return &webAgentState{Role: role, Name: role, Icon: "🤖", Tagline: "booting up", Color: "#8892A0", Status: "idle"}
 	}
 	return &webAgentState{Role: role, Name: p.Name, Icon: p.Icon, Tagline: p.Tagline, Color: p.Color, Status: "idle"}
 }
@@ -141,8 +141,8 @@ func parseProgress(ss *sessionState, msg string) {
 			a.Status = "thinking"
 		}
 	} else if strings.Contains(trimmed, "completed successfully") {
-		ss.Phase = "Mission Complete!"
-		ss.PhaseIcon = "✅"
+		ss.Phase = "Idea Factory Complete!"
+		ss.PhaseIcon = "🙌"
 		for _, a := range ss.Agents {
 			if a.Status == "thinking" {
 				a.Status = "done"
@@ -166,25 +166,28 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚔️ The War Room — AI Agent Team</title>
+    <title>🤖 The Idea Factory — IdeaArmy</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-dark: #0f172a;
-            --bg-card: #1e293b;
-            --bg-desk: #334155;
-            --border: #475569;
+            --bg-dark: #1A1B2E;
+            --bg-card: #232440;
+            --bg-desk: #2D2E4A;
+            --border: #7B68EE44;
             --text: #e2e8f0;
-            --text-dim: #94a3b8;
-            --accent: #7c3aed;
-            --accent-glow: rgba(124, 58, 237, 0.3);
-            --gold: #ffd700;
-            --green: #10b981;
-            --blue: #3b82f6;
-            --pink: #ec4899;
+            --text-dim: #8892A0;
+            --accent: #FF6BC1;
+            --accent-glow: rgba(255, 107, 193, 0.3);
+            --neon-mint: #51E898;
+            --electric-cyan: #00D4FF;
+            --bright-yellow: #FFD93D;
+            --coral: #FF6B6B;
+            --tangerine: #FF8C42;
+            --slate-purple: #7B68EE;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+            font-family: 'Nunito', 'SF Mono', sans-serif;
             background: var(--bg-dark);
             color: var(--text);
             min-height: 100vh;
@@ -195,12 +198,13 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         .war-room-header {
             text-align: center;
             padding: 24px 20px 16px;
-            background: linear-gradient(180deg, rgba(124,58,237,0.15) 0%, transparent 100%);
+            background: linear-gradient(135deg, rgba(255,107,193,0.15) 0%, rgba(81,232,152,0.1) 50%, rgba(0,212,255,0.15) 100%);
             border-bottom: 1px solid var(--border);
         }
         .war-room-header h1 {
             font-size: 2rem;
-            background: linear-gradient(90deg, var(--gold), #fbbf24, var(--gold));
+            font-weight: 800;
+            background: linear-gradient(90deg, var(--accent), var(--electric-cyan), var(--neon-mint));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             letter-spacing: 2px;
@@ -216,7 +220,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             border-radius: 12px;
             border: 1px solid var(--border);
         }
-        .setup-panel h2 { color: var(--gold); margin-bottom: 20px; text-align: center; }
+        .setup-panel h2 { color: var(--accent); margin-bottom: 20px; text-align: center; }
         .field { margin-bottom: 18px; }
         .field label { display: block; color: var(--text-dim); font-size: 0.8rem; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
         .field input, .field textarea, .field select {
@@ -224,6 +228,9 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             border-radius: 8px; color: var(--text); font-family: inherit; font-size: 0.9rem;
         }
         .field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+        .field input, .field textarea, .field select {
+            background: var(--bg-desk); border: 1px solid var(--border);
+        }
         .field textarea { resize: vertical; min-height: 80px; }
         .field small { color: var(--text-dim); font-size: 0.75rem; display: block; margin-top: 4px; }
 
@@ -233,19 +240,24 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             background: var(--bg-desk); border: 2px solid transparent; transition: all 0.2s;
         }
         .team-opt:hover { border-color: var(--border); }
-        .team-opt.selected { border-color: var(--accent); background: rgba(124,58,237,0.1); }
+        .team-opt.selected { border-color: var(--accent); background: rgba(255,107,193,0.1); }
         .team-opt .t-icon { font-size: 1.5rem; display: block; margin-bottom: 4px; }
         .team-opt .t-name { font-weight: 700; font-size: 0.85rem; }
         .team-opt .t-desc { color: var(--text-dim); font-size: 0.7rem; margin-top: 2px; }
 
         .btn-launch {
             display: block; width: 100%; padding: 14px;
-            background: linear-gradient(135deg, var(--accent), #9333ea);
+            background: linear-gradient(135deg, var(--accent), var(--slate-purple));
             color: white; border: none; border-radius: 8px;
-            font-family: inherit; font-size: 1rem; font-weight: 700;
+            font-family: inherit; font-size: 1rem; font-weight: 800;
             cursor: pointer; letter-spacing: 1px; transition: all 0.2s; margin-top: 10px;
+            animation: pinkGlow 2s ease-in-out infinite;
         }
-        .btn-launch:hover { transform: translateY(-1px); box-shadow: 0 4px 20px var(--accent-glow); }
+        .btn-launch:hover { transform: translateY(-2px); box-shadow: 0 4px 25px var(--accent-glow); }
+        @keyframes pinkGlow {
+            0%, 100% { box-shadow: 0 0 10px var(--accent-glow); }
+            50% { box-shadow: 0 0 25px var(--accent-glow), 0 0 50px rgba(255,107,193,0.1); }
+        }
 
         /* ── War Room Layout ── */
         .war-room { display: none; }
@@ -255,7 +267,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             text-align: center; padding: 12px;
             background: var(--bg-card); border-bottom: 1px solid var(--border);
         }
-        .phase-banner .phase-text { font-size: 1.1rem; color: var(--gold); }
+        .phase-banner .phase-text { font-size: 1.1rem; color: var(--bright-yellow); font-weight: 700; }
 
         .room-grid {
             display: grid;
@@ -286,11 +298,16 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             box-shadow: 0 0 20px var(--accent-glow);
             animation: glow 2s ease-in-out infinite;
         }
-        .desk.done { border-color: var(--green); }
+        .desk.done { border-color: var(--neon-mint); }
 
         @keyframes glow {
             0%, 100% { box-shadow: 0 0 15px var(--accent-glow); }
-            50% { box-shadow: 0 0 30px var(--accent-glow), 0 0 60px rgba(124,58,237,0.1); }
+            50% { box-shadow: 0 0 30px var(--accent-glow), 0 0 60px rgba(255,107,193,0.1); }
+        }
+        .desk.thinking .avatar { animation: botBounce 0.6s ease-in-out infinite; }
+        @keyframes botBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
         }
 
         .desk-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
@@ -306,8 +323,8 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             border: 2px solid var(--bg-card);
         }
         .desk.idle .avatar::after { background: var(--text-dim); }
-        .desk.thinking .avatar::after { background: #fbbf24; animation: blink 1s infinite; }
-        .desk.done .avatar::after { background: var(--green); }
+        .desk.thinking .avatar::after { background: var(--bright-yellow); animation: blink 1s infinite; }
+        .desk.done .avatar::after { background: var(--neon-mint); }
 
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
@@ -320,8 +337,8 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;
         }
         .status-idle { background: var(--bg-desk); color: var(--text-dim); }
-        .status-thinking { background: rgba(251,191,36,0.15); color: #fbbf24; }
-        .status-done { background: rgba(16,185,129,0.15); color: var(--green); }
+        .status-thinking { background: rgba(255,217,61,0.15); color: var(--bright-yellow); }
+        .status-done { background: rgba(81,232,152,0.15); color: var(--neon-mint); }
 
         .speech-bubble {
             background: var(--bg-desk);
@@ -359,15 +376,15 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             overflow: hidden;
         }
         .sidebar-section { padding: 16px; border-bottom: 1px solid var(--border); }
-        .sidebar-section h3 { color: var(--gold); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+        .sidebar-section h3 { color: var(--electric-cyan); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
 
         .idea-card {
             background: var(--bg-desk); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
-            border-left: 3px solid var(--green);
+            border-left: 3px solid var(--neon-mint);
         }
         .idea-card .idea-title { font-weight: 700; font-size: 0.85rem; margin-bottom: 2px; }
-        .idea-card .idea-score { color: var(--gold); font-size: 0.75rem; }
-        .idea-card.winner { border-left-color: var(--gold); background: rgba(255,215,0,0.05); }
+        .idea-card .idea-score { color: var(--bright-yellow); font-size: 0.75rem; }
+        .idea-card.winner { border-left-color: var(--bright-yellow); background: rgba(255,217,61,0.05); }
 
         .activity-feed {
             flex: 1; overflow-y: auto; padding: 12px 16px;
@@ -383,7 +400,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             overflow: hidden; margin-top: 20px; position: relative;
         }
         .result-card .result-header {
-            background: linear-gradient(135deg, var(--accent), #9333ea); color: white;
+            background: linear-gradient(135deg, var(--accent), var(--slate-purple)); color: white;
             padding: 16px 24px; display: flex; justify-content: space-between; align-items: center;
         }
         .result-card iframe { width: 100%; height: 70vh; border: none; }
@@ -397,7 +414,17 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             background: var(--accent); color: white; border: none; border-radius: 6px;
             cursor: pointer; font-family: inherit; font-size: 0.85rem;
         }
-        .btn-new:hover { background: #9333ea; }
+        .btn-new:hover { background: var(--slate-purple); }
+
+        /* ── Sparkle celebration ── */
+        @keyframes sparkle {
+            0% { opacity: 1; transform: scale(1) translateY(0); }
+            100% { opacity: 0; transform: scale(1.5) translateY(-40px); }
+        }
+        .sparkle-emoji {
+            position: fixed; font-size: 1.5rem; pointer-events: none; z-index: 200;
+            animation: sparkle 1.2s ease-out forwards;
+        }
 
         /* ── Responsive ── */
         @media (max-width: 900px) {
@@ -409,13 +436,13 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 </head>
 <body>
     <div class="war-room-header">
-        <h1>⚔️ THE WAR ROOM</h1>
-        <div class="subtitle">Multi-Agent Collaborative Ideation Command Center</div>
+        <h1>🤖 THE IDEA FACTORY</h1>
+        <div class="subtitle">A Playful Robot Army for Collaborative Brainstorming</div>
     </div>
 
     <!-- ── Setup Form ── -->
     <div id="setup" class="setup-panel">
-        <h2>🎯 Mission Briefing</h2>
+        <h2>🤖 Bot Deployment Orders</h2>
 
         <div class="field">
             <label>Your LLM Token <span style="color:#ef4444">*</span></label>
@@ -428,45 +455,45 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             <div class="team-options">
                 <div class="team-opt selected" onclick="selectTeam(this,'standard')">
                     <span class="t-icon">⚡</span>
-                    <div class="t-name">Strike Team</div>
-                    <div class="t-desc">4 agents · 1 round</div>
+                    <div class="t-name">Starter Pack</div>
+                    <div class="t-desc">4 bots · 1 round</div>
                 </div>
                 <div class="team-opt" onclick="selectTeam(this,'extended')">
-                    <span class="t-icon">🔬</span>
-                    <div class="t-name">Recon Squad</div>
-                    <div class="t-desc">6 agents · 2 rounds</div>
+                    <span class="t-icon">🔍</span>
+                    <div class="t-name">Explorer Squad</div>
+                    <div class="t-desc">6 bots · 2 rounds</div>
                 </div>
                 <div class="team-opt" onclick="selectTeam(this,'full')">
-                    <span class="t-icon">🚀</span>
-                    <div class="t-name">Full Battalion</div>
-                    <div class="t-desc">7 agents · 3 rounds</div>
+                    <span class="t-icon">🤖</span>
+                    <div class="t-name">Full Robot Army</div>
+                    <div class="t-desc">7 bots · 3 rounds</div>
                 </div>
             </div>
             <input type="hidden" id="teamConfig" value="standard">
         </div>
 
         <div class="field">
-            <label>Mission Objective</label>
-            <textarea id="topic" placeholder="Describe the topic you want the team to explore..."></textarea>
+            <label>What should the bots brainstorm?</label>
+            <textarea id="topic" placeholder="Describe the topic you want the bots to explore..."></textarea>
         </div>
 
-        <button class="btn-launch" onclick="launchMission()">🚀 LAUNCH MISSION</button>
+        <button class="btn-launch" onclick="launchMission()">🤖 DEPLOY THE BOTS!</button>
     </div>
 
     <!-- ── War Room ── -->
     <div id="warRoom" class="war-room">
         <div class="phase-banner">
-            <span class="phase-text" id="phaseText">⏳ Assembling team...</span>
+            <span class="phase-text" id="phaseText">⚡ Powering up the bots...</span>
         </div>
         <div class="room-grid">
             <div class="desks-area" id="desksArea"></div>
             <div class="sidebar">
                 <div class="sidebar-section">
-                    <h3>💡 Ideas Board</h3>
-                    <div id="ideasBoard"><div style="color:var(--text-dim);font-size:0.8rem;font-style:italic">Waiting for ideas...</div></div>
+                    <h3>💡 Idea Conveyor Belt</h3>
+                    <div id="ideasBoard"><div style="color:var(--text-dim);font-size:0.8rem;font-style:italic">Warming up idea generators...</div></div>
                 </div>
                 <div class="sidebar-section" style="flex-shrink:0">
-                    <h3>📡 Activity Feed</h3>
+                    <h3>📡 Bot Chatter</h3>
                 </div>
                 <div class="activity-feed" id="activityFeed"></div>
             </div>
@@ -477,7 +504,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
     <div id="resultOverlay" class="result-overlay">
         <div class="result-card">
             <div class="result-header">
-                <span>✨ Mission Report — Idea Sheet</span>
+                <span>✨ See What They Built!</span>
                 <button class="btn-close" onclick="closeResult()">✕ Close</button>
             </div>
             <iframe id="resultFrame"></iframe>
@@ -520,9 +547,9 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                             <div class="agent-name" id="name-${role}">${role}</div>
                             <div class="agent-role">${role.replace('_',' ')}</div>
                         </div>
-                        <span class="status-badge status-idle" id="badge-${role}">standby</span>
+                        <span class="status-badge status-idle" id="badge-${role}">snoozing</span>
                     </div>
-                    <div class="speech-bubble empty" id="speech-${role}">Awaiting orders...</div>
+                    <div class="speech-bubble empty" id="speech-${role}">Charging batteries...</div>
                 ` + "`" + `;
                 area.appendChild(div);
             });
@@ -541,7 +568,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             desk.className = 'desk ' + agent.status;
             const badge = document.getElementById('badge-' + agent.role);
             badge.className = 'status-badge status-' + agent.status;
-            badge.textContent = agent.status === 'thinking' ? 'active' : agent.status === 'done' ? 'done' : 'standby';
+            badge.textContent = agent.status === 'thinking' ? 'buzzing' : agent.status === 'done' ? 'high-five!' : 'snoozing';
 
             // Update speech
             const bubble = document.getElementById('speech-' + agent.role);
@@ -630,11 +657,12 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                 if (data.status === 'completed') {
                     clearInterval(pollTimer);
                     document.getElementById('phaseText').innerHTML =
-                        '✅ Mission Complete! <button class="btn-new" onclick="showResult()">📄 View Report</button> <button class="btn-new" onclick="resetToSetup()">🔄 New Mission</button>';
+                        '🙌 Bots nailed it! <button class="btn-new" onclick="showResult()">✨ See What They Built!</button> <button class="btn-new" onclick="resetToSetup()">🤖 Deploy Again!</button>';
+                    celebrateSparkles();
                     showResult();
                 } else if (data.status === 'failed') {
                     clearInterval(pollTimer);
-                    document.getElementById('phaseText').textContent = '❌ Mission Failed — ' + (data.error || 'Unknown error');
+                    document.getElementById('phaseText').textContent = '❌ Bots hit a glitch — ' + (data.error || 'Unknown error');
                 }
             } catch(e) {
                 console.error('Poll error:', e);
@@ -663,6 +691,21 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             document.getElementById('warRoom').classList.remove('active');
             document.getElementById('resultOverlay').classList.remove('active');
             document.getElementById('setup').style.display = 'block';
+        }
+
+        function celebrateSparkles() {
+            const emojis = ['✨','🤖','💡','🎉','⭐','🔧','🙌','💫'];
+            for (let i = 0; i < 20; i++) {
+                setTimeout(() => {
+                    const span = document.createElement('span');
+                    span.className = 'sparkle-emoji';
+                    span.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+                    span.style.left = Math.random() * 100 + 'vw';
+                    span.style.top = (50 + Math.random() * 40) + 'vh';
+                    document.body.appendChild(span);
+                    setTimeout(() => span.remove(), 1500);
+                }, i * 100);
+            }
         }
 
         function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
@@ -729,8 +772,8 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 	// Create session state
 	ss := &sessionState{
 		Agents:    agentStates,
-		Phase:     "Assembling team...",
-		PhaseIcon: "⏳",
+		Phase:     "Powering up the bots...",
+		PhaseIcon: "⚡",
 	}
 
 	// Wire up progress callback to parse agent updates

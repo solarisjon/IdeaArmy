@@ -36,7 +36,7 @@ func main() {
 	http.HandleFunc("/api/result/", handleResult)
 
 	fmt.Println("╔════════════════════════════════════════════════════════╗")
-	fmt.Println("║        AI Agent Team - Web Server                      ║")
+	fmt.Println("║   🤖 IdeaArmy — The Idea Factory Server                ║")
 	fmt.Println("╚════════════════════════════════════════════════════════╝")
 	fmt.Printf("\n🌐 Server starting on http://localhost:%s\n", port)
 	fmt.Println("\n📝 Endpoints:")
@@ -55,7 +55,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Agent Team - Collaborative Ideation</title>
+    <title>🤖 IdeaArmy — The Idea Factory</title>
     <style>
         * {
             margin: 0;
@@ -65,7 +65,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #FF6BC1 0%, #7B68EE 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -123,7 +123,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         .input-group input:focus,
         .input-group textarea:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #FF6BC1;
         }
 
         .input-group textarea {
@@ -132,7 +132,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         }
 
         .btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #FF6BC1 0%, #7B68EE 100%);
             color: white;
             border: none;
             padding: 14px 32px;
@@ -145,7 +145,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 6px 20px rgba(255, 107, 193, 0.4);
         }
 
         .btn:disabled {
@@ -171,7 +171,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         }
 
         .progress-fill {
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(90deg, #FF6BC1 0%, #7B68EE 100%);
             height: 100%;
             width: 0%;
             transition: width 0.3s;
@@ -237,8 +237,8 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 <body>
     <div class="container">
         <div class="header">
-            <h1>🤖 AI Agent Team</h1>
-            <p>Collaborative Ideation with Specialized AI Agents</p>
+            <h1>🤖 IdeaArmy</h1>
+            <p>A Playful Robot Army for Collaborative Brainstorming</p>
         </div>
 
         <div class="card">
@@ -257,7 +257,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                 </div>
 
                 <button class="btn" onclick="startDiscussion()">
-                    🚀 Start AI Team Discussion
+                    🤖 Deploy the Bots!
                 </button>
             </div>
 
@@ -265,7 +265,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                 <div class="progress-bar">
                     <div id="progressFill" class="progress-fill"></div>
                 </div>
-                <div id="progressText" class="progress-text">Initializing...</div>
+                <div id="progressText" class="progress-text">Powering up the bots...</div>
                 <div class="log" id="log"></div>
             </div>
         </div>
