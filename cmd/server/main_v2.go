@@ -505,7 +505,10 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         <div class="result-card">
             <div class="result-header">
                 <span>✨ See What They Built!</span>
-                <button class="btn-close" onclick="closeResult()">✕ Close</button>
+                <span>
+                    <button class="btn-close" onclick="downloadReport()" style="background:#2ecc71;margin-right:8px;">⬇ Download</button>
+                    <button class="btn-close" onclick="closeResult()">✕ Close</button>
+                </span>
             </div>
             <iframe id="resultFrame"></iframe>
         </div>
@@ -682,6 +685,19 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 
         function closeResult() {
             document.getElementById('resultOverlay').classList.remove('active');
+        }
+
+        function downloadReport() {
+            const iframe = document.getElementById('resultFrame');
+            const html = iframe.srcdoc;
+            if (!html) return;
+            const blob = new Blob([html], {type: 'text/html'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'idea_sheet_' + Date.now() + '.html';
+            a.click();
+            URL.revokeObjectURL(url);
         }
 
         function resetToSetup() {

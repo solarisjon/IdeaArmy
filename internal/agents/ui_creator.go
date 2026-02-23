@@ -2,6 +2,8 @@ package agents
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/yourusername/ai-agent-team/internal/llm"
 	"github.com/yourusername/ai-agent-team/internal/models"
 )
@@ -236,7 +238,24 @@ Remember: This is a detailed strategic decision document for leadership, not a b
 		return "", err
 	}
 
-	return response.Content, nil
+	return stripCodeFences(response.Content), nil
+}
+
+// stripCodeFences removes markdown code fences (```html ... ```) that LLMs
+// sometimes wrap around HTML output.
+func stripCodeFences(html string) string {
+	s := strings.TrimSpace(html)
+	// Strip leading ```html or ```
+	if strings.HasPrefix(s, "```html") {
+		s = strings.TrimPrefix(s, "```html")
+	} else if strings.HasPrefix(s, "```") {
+		s = strings.TrimPrefix(s, "```")
+	}
+	// Strip trailing ```
+	if strings.HasSuffix(s, "```") {
+		s = strings.TrimSuffix(s, "```")
+	}
+	return strings.TrimSpace(s)
 }
 
 // getTopIdeas returns the top N ideas sorted by score

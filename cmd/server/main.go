@@ -272,7 +272,9 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 
         <div id="result" class="result">
             <div class="card">
-                <h2 style="margin-bottom: 20px;">✨ Idea Sheet</h2>
+                <h2 style="margin-bottom: 20px;">✨ Idea Sheet
+                    <button onclick="downloadReport()" style="float:right;padding:8px 16px;background:#2ecc71;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">⬇ Download</button>
+                </h2>
                 <iframe id="resultFrame"></iframe>
             </div>
         </div>
@@ -394,6 +396,19 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                 clearInterval(checkInterval);
                 checkInterval = null;
             }
+        }
+
+        function downloadReport() {
+            const iframe = document.getElementById('resultFrame');
+            const html = iframe.srcdoc;
+            if (!html) return;
+            const blob = new Blob([html], {type: 'text/html'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'idea_sheet_' + Date.now() + '.html';
+            a.click();
+            URL.revokeObjectURL(url);
         }
     </script>
 </body>
