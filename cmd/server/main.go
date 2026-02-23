@@ -284,6 +284,12 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         let discussionId = null;
         let checkInterval = null;
 
+        // Restore saved token on page load
+        (function() {
+            const saved = localStorage.getItem('ideaarmy_token');
+            if (saved) document.getElementById('apiKey').value = saved;
+        })();
+
         async function startDiscussion() {
             const apiKey = document.getElementById('apiKey').value.trim();
             const topic = document.getElementById('topic').value.trim();
@@ -292,6 +298,9 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                 alert('Please provide a topic');
                 return;
             }
+
+            // Remember token in browser for next visit
+            if (apiKey) localStorage.setItem('ideaarmy_token', apiKey);
 
             // Hide input form, show progress
             document.getElementById('inputForm').style.display = 'none';

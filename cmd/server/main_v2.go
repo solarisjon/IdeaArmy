@@ -584,12 +584,21 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             }
         }
 
+        // Restore saved token on page load
+        (function() {
+            const saved = localStorage.getItem('ideaarmy_token');
+            if (saved) document.getElementById('apiKey').value = saved;
+        })();
+
         async function launchMission() {
             const apiKey = document.getElementById('apiKey').value.trim();
             const topic = document.getElementById('topic').value.trim();
 
             if (!apiKey) { alert('Please provide your LLM token'); return; }
             if (!topic) { alert('Please provide a mission objective'); return; }
+
+            // Remember token in browser for next visit
+            localStorage.setItem('ideaarmy_token', apiKey);
 
             document.getElementById('setup').style.display = 'none';
             document.getElementById('warRoom').classList.add('active');
