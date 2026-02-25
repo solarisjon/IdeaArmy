@@ -450,6 +450,11 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             <small>Your personal LLM proxy key (format: user=name&amp;key=sk_...) or OpenAI API key. Each user must provide their own token.</small>
         </div>
 
+        <div style="background:rgba(99,102,241,0.08);border-left:3px solid #6366f1;border-radius:6px;padding:14px 18px;margin-bottom:8px;font-size:0.9rem;line-height:1.6;color:#c4c9e2;">
+            <strong style="color:#a5b4fc;">💡 What is this?</strong><br>
+            IdeaArmy isn't here to solve your problems — it's here to generate ideas around them. Give it a statement, a challenge, or a topic, and a team of AI agents will brainstorm, debate, and surface creative possibilities you might not have considered. The more context and constraints you provide, the more focused and relevant the ideas will be. Keep it vague or wide open, and the bots will go off-the-wall — which is sometimes exactly what you need.
+        </div>
+
         <div class="field">
             <label>Squad Configuration</label>
             <div class="team-options">
