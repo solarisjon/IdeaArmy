@@ -299,8 +299,9 @@ func cleanSpeechContent(text string) string {
 		}
 	}
 
-	// Strip markdown prefix chars
+	// Strip markdown prefix chars and inline formatting
 	text = strings.TrimLeft(text, "*#-> \t")
+	text = stripInlineMarkdown(text)
 
 	// Extract first complete sentence
 	for i, ch := range text {
@@ -323,6 +324,32 @@ func cleanSpeechContent(text string) string {
 		return text[:157] + "..."
 	}
 	return text
+}
+
+// stripInlineMarkdown removes **bold**, *italic*, __underline__, `code` markers.
+func stripInlineMarkdown(s string) string {
+	result := strings.Builder{}
+	i := 0
+	for i < len(s) {
+		// ** or __
+		if i+1 < len(s) && ((s[i] == '*' && s[i+1] == '*') || (s[i] == '_' && s[i+1] == '_')) {
+			i += 2
+			continue
+		}
+		// single * or _
+		if s[i] == '*' || s[i] == '_' {
+			i++
+			continue
+		}
+		// backtick
+		if s[i] == '`' {
+			i++
+			continue
+		}
+		result.WriteByte(s[i])
+		i++
+	}
+	return result.String()
 }
 
 // extractJSONValue pulls the value from a "key": "value" line
