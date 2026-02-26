@@ -255,16 +255,18 @@ func extractSpeech(message string) (string, string) {
 	return role, cleanSpeechContent(speech)
 }
 
-// cleanSpeechContent strips JSON artifacts and extracts readable text
+// cleanSpeechContent distills raw LLM output into a short conversational soundbite.
 func cleanSpeechContent(text string) string {
-	// If text looks like JSON, extract meaningful parts
-	trimmed := strings.TrimSpace(text)
-	if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
-		// Extract titles from JSON-like content
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+
+	// JSON content (ideation agent mostly) — extract idea titles
+	if strings.HasPrefix(text, "{") || strings.HasPrefix(text, "[") {
 		var titles []string
-		for _, line := range strings.Split(trimmed, "\n") {
+		for _, line := range strings.Split(text, "\n") {
 			line = strings.TrimSpace(line)
-			// Look for "title": "..." patterns
 			if strings.Contains(line, `"title"`) {
 				val := extractJSONValue(line)
 				if val != "" {
@@ -272,17 +274,53 @@ func cleanSpeechContent(text string) string {
 				}
 			}
 		}
-		if len(titles) > 0 {
-			return "Ideas: " + strings.Join(titles, ", ")
+		if len(titles) == 1 {
+			return "💡 " + titles[0]
 		}
-		// Fallback: just show first non-brace line
-		for _, line := range strings.Split(trimmed, "\n") {
-			line = strings.TrimSpace(line)
-			if line != "" && line != "{" && line != "}" && line != "[" && line != "]" && !strings.HasPrefix(line, `"`) {
-				return line
+		if len(titles) > 1 {
+			more := ""
+			if len(titles) > 2 {
+				more = fmt.Sprintf(" (+%d more)", len(titles)-2)
+			}
+			return "💡 " + titles[0] + " · " + titles[1] + more
+		}
+		return "Thinking through ideas..."
+	}
+
+	// Strip common LLM preambles that aren't actual dialog
+	for _, prefix := range []string{
+		"Sure, here", "Certainly,", "Of course,", "Here is", "Here are",
+		"As a ", "In my ", "I will ", "I'll ",
+	} {
+		if strings.HasPrefix(text, prefix) {
+			if nl := strings.IndexAny(text, ".\n"); nl > 0 && nl < 80 {
+				text = strings.TrimSpace(text[nl+1:])
 			}
 		}
-		return "Analyzing..."
+	}
+
+	// Strip markdown prefix chars
+	text = strings.TrimLeft(text, "*#-> \t")
+
+	// Extract first complete sentence
+	for i, ch := range text {
+		if ch == '.' || ch == '!' || ch == '?' {
+			sentence := strings.TrimSpace(text[:i+1])
+			if len(sentence) > 8 {
+				if len(sentence) > 160 {
+					sentence = sentence[:157] + "..."
+				}
+				return sentence
+			}
+		}
+	}
+
+	// No sentence terminator — take first line or clip
+	if nl := strings.Index(text, "\n"); nl > 0 {
+		text = strings.TrimSpace(text[:nl])
+	}
+	if len(text) > 160 {
+		return text[:157] + "..."
 	}
 	return text
 }

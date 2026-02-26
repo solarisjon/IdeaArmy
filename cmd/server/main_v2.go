@@ -79,6 +79,81 @@ func newAgentState(role string) *webAgentState {
 	return &webAgentState{Role: role, Name: p.Name, Icon: p.Icon, Tagline: p.Tagline, Color: p.Color, Status: "idle"}
 }
 
+// distillToDialog converts raw LLM output to a short conversational soundbite.
+func distillToDialog(role, text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+
+	// JSON content (ideation agent mostly) — extract idea titles
+	if strings.HasPrefix(text, "{") || strings.HasPrefix(text, "[") {
+		var titles []string
+		for _, line := range strings.Split(text, "\n") {
+			line = strings.TrimSpace(line)
+			if strings.Contains(line, `"title"`) {
+				colonIdx := strings.Index(line, ":")
+				if colonIdx >= 0 {
+					val := strings.TrimSpace(line[colonIdx+1:])
+					val = strings.TrimSuffix(val, ",")
+					val = strings.Trim(val, `"`)
+					if val != "" {
+						titles = append(titles, val)
+					}
+				}
+			}
+		}
+		if len(titles) == 1 {
+			return "💡 " + titles[0]
+		}
+		if len(titles) > 1 {
+			more := ""
+			if len(titles) > 2 {
+				more = fmt.Sprintf(" (+%d more)", len(titles)-2)
+			}
+			return "💡 " + titles[0] + " · " + titles[1] + more
+		}
+		return "Thinking through ideas..."
+	}
+
+	// Strip common LLM preambles
+	for _, prefix := range []string{
+		"Sure, here", "Certainly,", "Of course,", "Here is", "Here are",
+		"As a ", "In my ", "I will ", "I'll ",
+	} {
+		if strings.HasPrefix(text, prefix) {
+			if nl := strings.IndexAny(text, ".\n"); nl > 0 && nl < 80 {
+				text = strings.TrimSpace(text[nl+1:])
+			}
+		}
+	}
+
+	// Strip markdown prefix chars
+	text = strings.TrimLeft(text, "*#-> \t")
+
+	// Extract first complete sentence
+	for i, ch := range text {
+		if ch == '.' || ch == '!' || ch == '?' {
+			sentence := strings.TrimSpace(text[:i+1])
+			if len(sentence) > 8 { // skip trivial one-word sentences
+				if len(sentence) > 160 {
+					sentence = sentence[:157] + "..."
+				}
+				return sentence
+			}
+		}
+	}
+
+	// No sentence terminator — take first line or clip
+	if nl := strings.Index(text, "\n"); nl > 0 {
+		text = strings.TrimSpace(text[:nl])
+	}
+	if len(text) > 160 {
+		return text[:157] + "..."
+	}
+	return text
+}
+
 // parseProgress extracts agent speech and phase changes from orchestrator messages
 func parseProgress(ss *sessionState, msg string) {
 	trimmed := strings.TrimSpace(msg)
@@ -90,7 +165,7 @@ func parseProgress(ss *sessionState, msg string) {
 				role := trimmed[start+1 : start+end]
 				speech := strings.TrimSpace(trimmed[start+end+1:])
 				if a, ok := ss.Agents[role]; ok {
-					a.Speech = speech
+					a.Speech = distillToDialog(role, speech)
 					a.Status = "done"
 				}
 			}
