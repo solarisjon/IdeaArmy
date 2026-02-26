@@ -333,7 +333,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         .field textarea { resize: vertical; min-height: 80px; }
         .field small { color: var(--text-dim); font-size: 0.75rem; display: block; margin-top: 4px; }
 
-        .team-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .team-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
         .team-opt {
             padding: 12px; border-radius: 8px; cursor: pointer; text-align: center;
             background: var(--bg-desk); border: 2px solid transparent; transition: all 0.2s;
@@ -525,6 +525,27 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             animation: sparkle 1.2s ease-out forwards;
         }
 
+        /* ── Custom config panel ── */
+        .cnt-btn {
+            background: var(--bg-desk); border: 1px solid var(--border); color: var(--text-dim);
+            padding: 5px 14px; border-radius: 6px; cursor: pointer; font-family: inherit;
+            font-size: 0.82rem; transition: all 0.15s;
+        }
+        .cnt-btn:hover { border-color: var(--accent); color: var(--text); }
+        .cnt-btn.selected { background: var(--accent); border-color: var(--accent); color: white; font-weight: 700; }
+
+        .agent-toggle { display: block; cursor: pointer; }
+        .agent-toggle input { display: none; }
+        .toggle-card {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--bg-desk); border: 1px solid var(--border); border-radius: 8px;
+            padding: 10px 12px; transition: all 0.15s;
+        }
+        .agent-toggle input:checked + .toggle-card { border-color: var(--accent); background: rgba(99,102,241,0.1); }
+        .toggle-icon { font-size: 1.2rem; }
+        .toggle-name { display: block; font-size: 0.85rem; font-weight: 700; color: var(--text); }
+        .toggle-desc { display: block; font-size: 0.72rem; color: var(--text-dim); }
+
         /* ── Responsive ── */
         @media (max-width: 900px) {
             .room-grid { grid-template-columns: 1fr; }
@@ -572,8 +593,84 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                     <div class="t-name">Full Robot Army</div>
                     <div class="t-desc">7 bots · 3 rounds</div>
                 </div>
+                <div class="team-opt" onclick="selectTeam(this,'custom')">
+                    <span class="t-icon">🎛️</span>
+                    <div class="t-name">Custom Crew</div>
+                    <div class="t-desc">You choose</div>
+                </div>
             </div>
             <input type="hidden" id="teamConfig" value="standard">
+
+            <!-- Custom config panel (shown when 'custom' is selected) -->
+            <div id="customPanel" style="display:none;margin-top:14px;background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.25);border-radius:10px;padding:18px;">
+                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;color:#a5b4fc;margin-bottom:14px;font-weight:700;">🎛️ Build Your Crew</div>
+
+                <!-- Mandatory agents notice -->
+                <div style="font-size:0.78rem;color:#6b7280;margin-bottom:14px;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:6px;">
+                    <strong style="color:#c4c9e2;">Always on the team:</strong> Team Leader · Ideation Agent · Moderator · UI Creator
+                </div>
+
+                <!-- Ideation count -->
+                <div style="margin-bottom:16px;">
+                    <div style="font-size:0.82rem;color:#c4c9e2;margin-bottom:8px;font-weight:600;">🧠 Ideation Passes per Round <span id="ideationLabel" style="color:#a5b4fc;font-weight:700;">1</span></div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="cnt-btn selected" onclick="setCount('ideation',1,this)">1</button>
+                        <button class="cnt-btn" onclick="setCount('ideation',2,this)">2</button>
+                        <button class="cnt-btn" onclick="setCount('ideation',3,this)">3</button>
+                    </div>
+                    <div style="font-size:0.72rem;color:#6b7280;margin-top:5px;">More passes = more diverse ideas per round</div>
+                </div>
+
+                <!-- Optional agents -->
+                <div style="margin-bottom:16px;">
+                    <div style="font-size:0.82rem;color:#c4c9e2;margin-bottom:8px;font-weight:600;">🤖 Optional Agents</div>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <label class="agent-toggle">
+                            <input type="checkbox" id="chkResearcher" checked>
+                            <span class="toggle-card">
+                                <span class="toggle-icon">🔬</span>
+                                <span>
+                                    <span class="toggle-name">Researcher</span>
+                                    <span class="toggle-desc">Grounds ideas in real-world context before ideation</span>
+                                </span>
+                            </span>
+                        </label>
+                        <label class="agent-toggle">
+                            <input type="checkbox" id="chkCritic" checked>
+                            <span class="toggle-card">
+                                <span class="toggle-icon">👾</span>
+                                <span>
+                                    <span class="toggle-name">Critic</span>
+                                    <span class="toggle-desc">Challenges assumptions and pokes holes in ideas</span>
+                                </span>
+                            </span>
+                        </label>
+                        <label class="agent-toggle">
+                            <input type="checkbox" id="chkImplementer">
+                            <span class="toggle-card">
+                                <span class="toggle-icon">🔧</span>
+                                <span>
+                                    <span class="toggle-name">Implementer</span>
+                                    <span class="toggle-desc">Thinks through practical execution and feasibility</span>
+                                </span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Rounds -->
+                <div>
+                    <div style="font-size:0.82rem;color:#c4c9e2;margin-bottom:8px;font-weight:600;">🔄 Discussion Rounds <span id="roundsLabel" style="color:#a5b4fc;font-weight:700;">2</span></div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="cnt-btn" onclick="setCount('rounds',1,this)">1</button>
+                        <button class="cnt-btn selected" onclick="setCount('rounds',2,this)">2</button>
+                        <button class="cnt-btn" onclick="setCount('rounds',3,this)">3</button>
+                        <button class="cnt-btn" onclick="setCount('rounds',4,this)">4</button>
+                        <button class="cnt-btn" onclick="setCount('rounds',5,this)">5</button>
+                    </div>
+                    <div style="font-size:0.72rem;color:#6b7280;margin-top:5px;">More rounds = deeper debate, longer runtime</div>
+                </div>
+            </div>
         </div>
 
         <div class="field">
@@ -628,14 +725,41 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         const TEAM_AGENTS = {
             standard: ['team_leader','ideation','moderator','ui_creator'],
             extended: ['team_leader','ideation','moderator','researcher','critic','ui_creator'],
-            full:     ['team_leader','ideation','moderator','researcher','critic','implementer','ui_creator']
+            full:     ['team_leader','ideation','moderator','researcher','critic','implementer','ui_creator'],
+            custom:   ['team_leader','ideation','moderator','ui_creator']
         };
+
+        let customIdeationCount = 1;
+        let customRounds = 2;
 
         function selectTeam(el, team) {
             selectedTeam = team;
             document.getElementById('teamConfig').value = team;
             document.querySelectorAll('.team-opt').forEach(e => e.classList.remove('selected'));
             el.classList.add('selected');
+            document.getElementById('customPanel').style.display = team === 'custom' ? 'block' : 'none';
+        }
+
+        function setCount(type, val, btn) {
+            if (type === 'ideation') {
+                customIdeationCount = val;
+                document.getElementById('ideationLabel').textContent = val;
+                btn.closest('div').querySelectorAll('.cnt-btn').forEach(b => b.classList.remove('selected'));
+            } else {
+                customRounds = val;
+                document.getElementById('roundsLabel').textContent = val;
+                btn.closest('div').querySelectorAll('.cnt-btn').forEach(b => b.classList.remove('selected'));
+            }
+            btn.classList.add('selected');
+        }
+
+        function getCustomAgentRoles() {
+            const roles = ['team_leader', 'ideation', 'moderator'];
+            if (document.getElementById('chkResearcher').checked) roles.splice(2, 0, 'researcher');
+            if (document.getElementById('chkCritic').checked) roles.push('critic');
+            if (document.getElementById('chkImplementer').checked) roles.push('implementer');
+            roles.push('ui_creator');
+            return roles;
         }
 
         function buildDesks(roles) {
@@ -707,13 +831,25 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             document.getElementById('setup').style.display = 'none';
             document.getElementById('warRoom').classList.add('active');
 
-            buildDesks(TEAM_AGENTS[selectedTeam]);
+            const roles = selectedTeam === 'custom' ? getCustomAgentRoles() : TEAM_AGENTS[selectedTeam] || TEAM_AGENTS.standard;
+            buildDesks(roles);
+
+            const body = { api_key: apiKey, topic: topic, team_config: selectedTeam };
+            if (selectedTeam === 'custom') {
+                body.custom = {
+                    researcher:    document.getElementById('chkResearcher').checked,
+                    critic:        document.getElementById('chkCritic').checked,
+                    implementer:   document.getElementById('chkImplementer').checked,
+                    ideation_count: customIdeationCount,
+                    max_rounds:    customRounds
+                };
+            }
 
             try {
                 const res = await fetch('/api/start', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ api_key: apiKey, topic: topic, team_config: selectedTeam })
+                    body: JSON.stringify(body)
                 });
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
@@ -856,6 +992,13 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 		APIKey     string `json:"api_key"`
 		Topic      string `json:"topic"`
 		TeamConfig string `json:"team_config"`
+		Custom     struct {
+			Researcher   bool `json:"researcher"`
+			Critic       bool `json:"critic"`
+			Implementer  bool `json:"implementer"`
+			IdeationCount int `json:"ideation_count"`
+			MaxRounds    int  `json:"max_rounds"`
+		} `json:"custom"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -880,6 +1023,35 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 		config = models.ExtendedTeamConfig()
 	case "full":
 		config = models.FullTeamConfig()
+	case "custom":
+		rounds := req.Custom.MaxRounds
+		if rounds < 1 {
+			rounds = 1
+		}
+		if rounds > 5 {
+			rounds = 5
+		}
+		ideationCount := req.Custom.IdeationCount
+		if ideationCount < 1 {
+			ideationCount = 1
+		}
+		if ideationCount > 3 {
+			ideationCount = 3
+		}
+		config = &models.TeamConfig{
+			IncludeTeamLeader:  true,
+			IncludeUICreator:   true,
+			IncludeIdeation:    true,
+			IncludeModerator:   true,
+			IncludeResearcher:  req.Custom.Researcher,
+			IncludeCritic:      req.Custom.Critic,
+			IncludeImplementer: req.Custom.Implementer,
+			MaxRounds:          rounds,
+			IdeationCount:      ideationCount,
+			MinIdeas:           3,
+			DeepDive:           rounds > 1,
+			MinScoreThreshold:  6.0,
+		}
 	default:
 		config = models.StandardTeamConfig()
 	}

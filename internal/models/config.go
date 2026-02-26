@@ -14,8 +14,9 @@ type TeamConfig struct {
 	IncludeImplementer bool
 
 	// Discussion settings
-	MaxRounds int  // Number of discussion rounds
-	MinIdeas  int  // Minimum ideas to generate
+	MaxRounds     int  // Number of discussion rounds
+	IdeationCount int  // Number of ideation passes per round (1-3)
+	MinIdeas      int  // Minimum ideas to generate
 	DeepDive  bool // Enable deep dive mode with more back-and-forth
 
 	// Quality settings
@@ -33,6 +34,7 @@ func DefaultTeamConfig() *TeamConfig {
 		IncludeCritic:      false,
 		IncludeImplementer: false,
 		MaxRounds:          1,
+		IdeationCount:      1,
 		MinIdeas:           3,
 		DeepDive:           false,
 		MinScoreThreshold:  6.0,
@@ -50,6 +52,7 @@ func StandardTeamConfig() *TeamConfig {
 		IncludeCritic:      false,
 		IncludeImplementer: false,
 		MaxRounds:          1,
+		IdeationCount:      1,
 		MinIdeas:           3,
 		DeepDive:           false,
 		MinScoreThreshold:  6.0,
@@ -67,6 +70,7 @@ func ExtendedTeamConfig() *TeamConfig {
 		IncludeCritic:      true,
 		IncludeImplementer: false,
 		MaxRounds:          2,
+		IdeationCount:      1,
 		MinIdeas:           4,
 		DeepDive:           true,
 		MinScoreThreshold:  7.0,
@@ -84,6 +88,7 @@ func FullTeamConfig() *TeamConfig {
 		IncludeCritic:      true,
 		IncludeImplementer: true,
 		MaxRounds:          3,
+		IdeationCount:      1,
 		MinIdeas:           5,
 		DeepDive:           true,
 		MinScoreThreshold:  7.5,

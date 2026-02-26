@@ -150,14 +150,20 @@ func (o *ConfigurableOrchestrator) runExplorationRound(round int) error {
 		}
 	}
 
-	// Ideation phase
+	// Ideation phase — run 1..IdeationCount passes
 	if _, hasIdeation := o.Agents[models.RoleIdeation]; hasIdeation {
-		prompt := "Generate creative ideas based on the discussion so far"
-		if round > 1 {
-			prompt = "Building on previous ideas and feedback, generate refined or new creative ideas"
+		count := o.Config.IdeationCount
+		if count < 1 {
+			count = 1
 		}
-		if err := o.runAgentContribution(models.RoleIdeation, prompt); err != nil {
-			return err
+		for pass := 0; pass < count; pass++ {
+			prompt := "Generate creative ideas based on the discussion so far"
+			if round > 1 || pass > 0 {
+				prompt = "Building on previous ideas and feedback, generate refined or new creative ideas"
+			}
+			if err := o.runAgentContribution(models.RoleIdeation, prompt); err != nil {
+				return err
+			}
 		}
 	}
 
