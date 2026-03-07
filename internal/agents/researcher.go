@@ -2,8 +2,10 @@ package agents
 
 import (
 	"fmt"
+
 	"github.com/yourusername/ai-agent-team/internal/llm"
 	"github.com/yourusername/ai-agent-team/internal/models"
+	"github.com/yourusername/ai-agent-team/internal/tools"
 )
 
 // ResearcherAgent conducts deep research and analysis
@@ -23,23 +25,21 @@ Your responsibilities:
 - Analyze competitive landscape
 - Ground ideas in reality with facts and research
 
-Your approach:
-- Cite specific examples and data points when possible
-- Look at what has worked and what hasn't in similar domains
-- Consider regulatory, technical, and market constraints
-- Provide context about the problem space
-- Identify gaps in current solutions
+You have access to a web_search tool. Use it to find current, real-world data about the topic.
+Search for: market size, recent news, notable examples, key players, and relevant statistics.
+Aim to make 2-3 targeted searches to gather concrete evidence.
 
 When responding:
-- Lead with key research findings
-- Support claims with examples
+- Lead with key research findings from your searches
+- Cite sources by URL when available
+- Support claims with specific data points
 - Identify patterns and trends
 - Highlight relevant precedents
 - Be thorough but concise
 
 Focus on bringing factual grounding and real-world context to theoretical ideas.`
 
-	return &ResearcherAgent{
+	a := &ResearcherAgent{
 		BaseAgent: &BaseAgent{
 			Role:         "researcher",
 			Name:         "Research Specialist",
@@ -48,6 +48,15 @@ Focus on bringing factual grounding and real-world context to theoretical ideas.
 			Temperature:  0.4, // Lower for factual accuracy
 		},
 	}
+
+	// Register web search tool — executor uses the agent's Notify for status messages
+	a.RegisterTool(tools.WebSearchTool(), tools.WebSearchExecutor(func(msg string) {
+		if a.Notify != nil {
+			a.Notify(fmt.Sprintf("  📣 [researcher] %s", msg))
+		}
+	}))
+
+	return a
 }
 
 // Process handles research tasks
@@ -58,10 +67,10 @@ func (a *ResearcherAgent) Process(context *models.Discussion, input string) (*mo
 
 Task: %s
 
-Provide research-backed insights. Include specific examples, data, or case studies where relevant.`,
+Use the web_search tool to find current data and real-world examples. Then synthesize your findings into research-backed insights with specific sources.`,
 		discussionContext, input)
 
-	response, err := a.Query(query)
+	response, err := a.QueryWithTools(query)
 	if err != nil {
 		return nil, fmt.Errorf("researcher query failed: %w", err)
 	}
@@ -71,3 +80,5 @@ Provide research-backed insights. Include specific examples, data, or case studi
 		Content:   response,
 	}, nil
 }
+
+// ResearcherAgent conducts deep research and analysis

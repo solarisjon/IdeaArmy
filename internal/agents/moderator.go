@@ -71,7 +71,7 @@ Task: %s
 Evaluate the ideas presented. Provide scores, identify pros and cons, and give detailed feedback. Return your response as JSON following the specified format.`,
 		discussionContext, input)
 
-	response, err := a.Query(query)
+	response, err := a.QueryStream(query)
 	if err != nil {
 		return nil, fmt.Errorf("moderator query failed: %w", err)
 	}

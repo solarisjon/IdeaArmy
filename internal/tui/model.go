@@ -106,6 +106,12 @@ type ModelAssignedMsg struct {
 	Model string
 }
 
+// AgentChunkMsg is sent for each streaming token from an agent.
+type AgentChunkMsg struct {
+	Role  string
+	Chunk string
+}
+
 // CompleteMsg is sent when discussion completes
 type CompleteMsg struct {
 	Discussion *models.Discussion
@@ -204,11 +210,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if agent, ok := m.Agents[msg.Role]; ok {
 			agent.Status = msg.Status
 			agent.Message = msg.Message
-			if msg.Speech != "" {
-				agent.Speech = msg.Speech
-			}
-			if msg.Status == "working" {
+			if msg.Status == "working" && msg.Speech == "" {
+				// Agent is starting a new contribution — clear speech buffer for streaming
+				agent.Speech = ""
 				agent.StartTime = time.Now()
+			} else if msg.Speech != "" {
+				// Final speech text received
+				agent.Speech = msg.Speech
 			}
 		}
 		return m, nil
@@ -229,6 +237,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ModelAssignedMsg:
 		if agent, ok := m.Agents[msg.Role]; ok {
 			agent.Model = msg.Model
+		}
+		return m, nil
+
+	case AgentChunkMsg:
+		if agent, ok := m.Agents[msg.Role]; ok {
+			agent.Speech += msg.Chunk
+			agent.Status = "working"
 		}
 		return m, nil
 

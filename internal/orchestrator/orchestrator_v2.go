@@ -21,6 +21,8 @@ type ConfigurableOrchestrator struct {
 	Agents        map[models.AgentRole]agents.Agent
 	Discussion    *models.Discussion
 	OnProgress    func(message string)
+	// OnChunk is called for each streaming token: role + chunk text.
+	OnChunk func(role string, chunk string)
 }
 
 // NewConfigurableOrchestrator creates a new orchestrator with custom team config.
@@ -281,6 +283,19 @@ func (o *ConfigurableOrchestrator) runAgentContribution(role models.AgentRole, p
 
 	o.notify(fmt.Sprintf("  🗣️  %s contributing...", agent.GetName()))
 
+	// Wire streaming and notify callbacks on the agent's BaseAgent before Process()
+	if ba, ok := getBaseAgent(agent); ok {
+		if o.OnChunk != nil {
+			roleStr := string(role)
+			ba.OnChunk = func(chunk string) { o.OnChunk(roleStr, chunk) }
+		}
+		ba.Notify = func(msg string) { o.notify(msg) }
+		defer func() {
+			ba.OnChunk = nil
+			ba.Notify = nil
+		}()
+	}
+
 	response, err := agent.Process(o.Discussion, prompt)
 	if err != nil {
 		log.Printf("Warning: %s contribution failed: %v", agent.GetName(), err)
@@ -295,7 +310,6 @@ func (o *ConfigurableOrchestrator) runAgentContribution(role models.AgentRole, p
 			o.notify(fmt.Sprintf("    💡 New idea: %s", idea.Title))
 			ideaTitles = append(ideaTitles, idea.Title)
 		}
-		// Use idea titles for speech bubble instead of raw JSON
 		speechText := fmt.Sprintf("💡 Proposed: %s", strings.Join(ideaTitles, " | "))
 		o.notify(fmt.Sprintf("  📣 [%s] %s", string(role), o.truncate(speechText, 200)))
 	} else {

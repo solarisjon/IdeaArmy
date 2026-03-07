@@ -68,7 +68,7 @@ Task: %s
 Generate 3-5 creative, well-researched ideas. Think deeply about the concepts, their validity, and potential impact. Return your response as JSON following the specified format.`,
 		discussionContext, input)
 
-	response, err := a.Query(query)
+	response, err := a.QueryStream(query)
 	if err != nil {
 		return nil, fmt.Errorf("ideation query failed: %w", err)
 	}

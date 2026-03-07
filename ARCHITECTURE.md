@@ -46,6 +46,7 @@ idea-army/
 ├── internal/
 │   ├── llm/
 │   │   ├── interface.go      # Client interface + Message type
+│   │   ├── tools.go          # ToolDefinition, ToolCall, StreamingClient, ToolCallingClient
 │   │   ├── resolve.go        # BackendConfig + env-var auto-detection
 │   │   ├── models.go         # ListModels() — model discovery
 │   │   └── http.go           # Shared HTTP client with timeout
@@ -53,12 +54,14 @@ idea-army/
 │   │   └── factory.go        # NewClient, NewClientAuto, NewClientWithModel
 │   ├── claude/                # Anthropic Messages API implementation of llm.Client
 │   ├── openai/                # OpenAI-compatible API implementation of llm.Client
+│   ├── tools/
+│   │   └── websearch.go      # Firecrawl web search tool (FIRECRAWL_API_KEY)
 │   ├── agents/
 │   │   ├── agent.go          # Agent interface, BaseAgent, BuildContext()
 │   │   ├── team_leader.go    # Team Leader agent
 │   │   ├── ideation.go       # Ideation agent (parses JSON ideas)
 │   │   ├── moderator.go      # Moderator agent (scores ideas)
-│   │   ├── researcher.go     # Researcher agent
+│   │   ├── researcher.go     # Researcher agent (web search via Firecrawl)
 │   │   ├── critic.go         # Critic agent
 │   │   ├── implementer.go    # Implementer agent
 │   │   └── ui_creator.go     # UI Creator agent (HTML report generation)
@@ -122,9 +125,32 @@ type Agent interface {
 - `SystemPrompt string` — role-specific system prompt baked in at construction
 - `Temperature float64` — controls creativity vs. precision
 - `Model string` — tracks which LLM model this agent is using
-- `Query(string)` / `QueryWithTokens(string, int)` — convenience wrappers around the client
+- `OnChunk func(string)` — set by the orchestrator before `Process()`; called for each streaming token
+- `Notify func(string)` — set by the orchestrator; used to emit tool-use progress messages
+- `Query(string)` / `QueryWithTokens(string, int)` — blocking LLM call wrappers
+- `QueryStream(string)` — streaming wrapper; calls `OnChunk` per token if the client supports `StreamingClient`; falls back to `Query()` if not
+- `RegisterTool(def, executor)` / `QueryWithTools(string)` — tool-calling support; `QueryWithTools` handles the full call-execute-feed-back loop
 
 Each concrete agent (e.g., `IdeationAgent`) embeds `*BaseAgent` and implements `Process()`.
+
+### Optional Streaming and Tool-Calling Interfaces
+
+Beyond the core `llm.Client` interface, backends may implement additional optional interfaces (defined in `internal/llm/tools.go`):
+
+```go
+// Detect with: sc, ok := client.(llm.StreamingClient)
+type StreamingClient interface {
+    SendMessageStream(messages []Message, systemPrompt string, temperature float64, onChunk func(string)) (string, error)
+}
+
+// Detect with: tc, ok := client.(llm.ToolCallingClient)
+type ToolCallingClient interface {
+    SendMessageWithTools(messages []Message, systemPrompt string, temperature float64,
+        tools []ToolDefinition, executeTool func(name, arguments string) (string, error)) (string, error)
+}
+```
+
+Both the OpenAI and Claude backends implement `StreamingClient`. Only the OpenAI backend implements `ToolCallingClient` (Anthropic's tool format differs; Claude is planned for a future release). Agents detect these interfaces at call time via type assertions so the system degrades gracefully when a backend doesn't support them.
 
 ### TeamConfig and Presets
 
@@ -341,6 +367,7 @@ The `Model` struct holds all UI state: agent states, progress, ideas, and termin
 |---------|---------|
 | `ProgressMsg` | Updates phase name, round, and progress bar |
 | `AgentUpdateMsg` | Changes an agent's status and speech bubble |
+| `AgentChunkMsg` | Appends a streaming token to an agent's speech bubble |
 | `ModelAssignedMsg` | Updates which model an agent is using |
 | `IdeaGeneratedMsg` | Adds an idea to the conveyor belt |
 | `LogMsg` | Appends to the scrolling log |
@@ -354,7 +381,8 @@ The `Model` struct holds all UI state: agent states, progress, ideas, and termin
 1. Creates the Bubbletea `Model` and `Program`
 2. Starts the orchestrator in a **goroutine**
 3. Wires `OnProgress` to parse progress strings and `p.Send()` typed messages to the TUI
-4. The TUI's `Update()` loop processes messages and `View()` renders the war room grid
+4. Wires `OnChunk` to send `AgentChunkMsg` for real-time token streaming into speech bubbles
+5. The TUI's `Update()` loop processes messages and `View()` renders the war room grid
 
 ```mermaid
 sequenceDiagram

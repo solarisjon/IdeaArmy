@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/yourusername/ai-agent-team/internal/llmfactory"
 	"github.com/yourusername/ai-agent-team/internal/models"
 	"github.com/yourusername/ai-agent-team/internal/orchestrator"
@@ -22,6 +23,48 @@ type sessionState struct {
 	Phase      string
 	PhaseIcon  string
 	Log        []string
+
+	// SSE fan-out: registered client channels
+	sseMu      sync.Mutex
+	sseClients []chan string
+}
+
+// notifySSE sends a JSON-encoded event to all SSE subscribers (non-blocking).
+func (ss *sessionState) notifySSE(eventType string, data interface{}) {
+	payload, err := json.Marshal(map[string]interface{}{"type": eventType, "data": data})
+	if err != nil {
+		return
+	}
+	ss.sseMu.Lock()
+	defer ss.sseMu.Unlock()
+	for _, ch := range ss.sseClients {
+		select {
+		case ch <- string(payload):
+		default: // drop if buffer full
+		}
+	}
+}
+
+// addSSEClient registers a new SSE subscriber and returns its channel.
+func (ss *sessionState) addSSEClient() chan string {
+	ch := make(chan string, 300)
+	ss.sseMu.Lock()
+	ss.sseClients = append(ss.sseClients, ch)
+	ss.sseMu.Unlock()
+	return ch
+}
+
+// removeSSEClient deregisters and closes an SSE subscriber channel.
+func (ss *sessionState) removeSSEClient(ch chan string) {
+	ss.sseMu.Lock()
+	defer ss.sseMu.Unlock()
+	for i, c := range ss.sseClients {
+		if c == ch {
+			ss.sseClients = append(ss.sseClients[:i], ss.sseClients[i+1:]...)
+			close(ch)
+			return
+		}
+	}
 }
 
 type webAgentState struct {
@@ -61,6 +104,7 @@ func main() {
 	http.HandleFunc("/", handleHome)
 	http.HandleFunc("/api/start", handleStart)
 	http.HandleFunc("/api/status/", handleStatus)
+	http.HandleFunc("/api/stream/", handleStream)
 	http.HandleFunc("/api/result/", handleResult)
 
 	fmt.Println("╔════════════════════════════════════════════════════════╗")
@@ -284,6 +328,19 @@ func parseProgress(ss *sessionState, msg string) {
 	}
 
 	ss.Log = append(ss.Log, trimmed)
+
+	// Fan-out current state snapshot to SSE subscribers
+	agents := make(map[string]*webAgentState, len(ss.Agents))
+	for k, v := range ss.Agents {
+		cp := *v
+		agents[k] = &cp
+	}
+	ss.notifySSE("status", map[string]interface{}{
+		"agents":     agents,
+		"phase":      ss.Phase,
+		"phase_icon": ss.PhaseIcon,
+		"log":        trimmed,
+	})
 }
 
 func handleHome(w http.ResponseWriter, r *http.Request) {
@@ -890,10 +947,62 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                 if (data.error) throw new Error(data.error);
 
                 discussionId = data.discussion_id;
-                pollTimer = setInterval(pollStatus, 1500);
+                connectSSE(discussionId);
             } catch(e) {
                 alert('Launch failed: ' + e.message);
                 resetToSetup();
+            }
+        }
+
+        let eventSource = null;
+
+        function connectSSE(id) {
+            if (eventSource) eventSource.close();
+            eventSource = new EventSource('/api/stream/' + id);
+            eventSource.onmessage = function(e) {
+                try { handleSSEEvent(JSON.parse(e.data)); } catch(err) {}
+            };
+            eventSource.onerror = function() {
+                eventSource.close();
+                eventSource = null;
+                // Fall back to polling
+                pollTimer = setInterval(pollStatus, 1500);
+            };
+        }
+
+        function handleSSEEvent(event) {
+            if (event.type === 'status') {
+                const data = event.data || event;
+                if (data.phase) {
+                    document.getElementById('phaseText').textContent = (data.phase_icon || '⏳') + ' ' + data.phase;
+                }
+                if (data.agents) {
+                    Object.values(data.agents).forEach(updateDesk);
+                }
+                if (data.log) {
+                    const feed = document.getElementById('activityFeed');
+                    const div = document.createElement('div');
+                    div.className = 'feed-entry';
+                    div.textContent = data.log;
+                    feed.appendChild(div);
+                    feed.scrollTop = feed.scrollHeight;
+                }
+            } else if (event.type === 'chunk') {
+                const d = event.data;
+                if (d && d.role && d.chunk) {
+                    const bubble = document.getElementById('speech-' + d.role);
+                    if (bubble) {
+                        if (bubble.querySelector('.typing-indicator')) {
+                            bubble.innerHTML = '';
+                            bubble.className = 'speech-bubble';
+                        }
+                        bubble.textContent += d.chunk;
+                    }
+                }
+            }
+            // Check status/completion via periodic poll (keeps it simple)
+            if (!pollTimer) {
+                pollTimer = setInterval(pollStatus, 3000);
             }
         }
 
@@ -908,7 +1017,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                     document.getElementById('phaseText').textContent = (data.phase_icon || '⏳') + ' ' + data.phase;
                 }
 
-                // Update agent desks
+                // Update agent desks (provides model + full speech state)
                 if (data.agents) {
                     Object.values(data.agents).forEach(updateDesk);
                 }
@@ -927,8 +1036,8 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                     });
                 }
 
-                // Update activity feed
-                if (data.log && data.log.length > seenLogCount) {
+                // Update activity feed (only when not using SSE)
+                if (!eventSource && data.log && data.log.length > seenLogCount) {
                     const feed = document.getElementById('activityFeed');
                     for (let i = seenLogCount; i < data.log.length; i++) {
                         const div = document.createElement('div');
@@ -943,12 +1052,16 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                 // Check completion
                 if (data.status === 'completed') {
                     clearInterval(pollTimer);
+                    pollTimer = null;
+                    if (eventSource) { eventSource.close(); eventSource = null; }
                     document.getElementById('phaseText').innerHTML =
                         '🙌 Bots nailed it! <button class="btn-new" onclick="showResult()">✨ See What They Built!</button> <button class="btn-new" onclick="resetToSetup()">🤖 Deploy Again!</button>';
                     celebrateSparkles();
                     showResult();
                 } else if (data.status === 'failed') {
                     clearInterval(pollTimer);
+                    pollTimer = null;
+                    if (eventSource) { eventSource.close(); eventSource = null; }
                     document.getElementById('phaseText').textContent = '❌ Bots hit a glitch — ' + (data.error || 'Unknown error');
                 }
             } catch(e) {
@@ -1105,14 +1218,14 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 		agentStates[string(role)] = newAgentState(string(role))
 	}
 
-	// Create session state
+	// Create session state upfront so SSE clients can connect immediately
 	ss := &sessionState{
 		Agents:    agentStates,
 		Phase:     "Powering up the bots...",
 		PhaseIcon: "⚡",
 	}
 
-	// Wire up progress callback to parse agent updates
+	// Wire up progress callback to parse agent updates and fan-out to SSE
 	orch.OnProgress = func(message string) {
 		log.Println(message)
 		mu.Lock()
@@ -1120,34 +1233,47 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 		mu.Unlock()
 	}
 
+	// Wire up streaming chunk callback for real-time token delivery via SSE
+	orch.OnChunk = func(role, chunk string) {
+		ss.notifySSE("chunk", map[string]string{"role": role, "chunk": chunk})
+		// Also update the agent speech buffer in session state
+		mu.Lock()
+		if a, ok := ss.Agents[role]; ok {
+			a.Speech += chunk
+		}
+		mu.Unlock()
+	}
+
+	// Pre-generate a discussion ID and register session immediately
+	// so SSE clients can connect before the discussion fully initializes.
+	sessionID := uuid.New().String()
+	ss.Discussion = &models.Discussion{
+		ID:     sessionID,
+		Topic:  req.Topic,
+		Status: "running",
+	}
+	mu.Lock()
+	sessions[sessionID] = ss
+	mu.Unlock()
+
 	// Start discussion in background
 	go func() {
 		if err := orch.StartDiscussion(req.Topic); err != nil {
 			log.Printf("Discussion failed: %v", err)
 			mu.Lock()
-			if orch.GetDiscussion() != nil {
-				orch.GetDiscussion().Status = "failed"
-			}
+			ss.Discussion.Status = "failed"
+			mu.Unlock()
+		}
+		// Update session with final discussion object
+		if d := orch.GetDiscussion(); d != nil {
+			mu.Lock()
+			ss.Discussion = d
 			mu.Unlock()
 		}
 	}()
 
-	time.Sleep(500 * time.Millisecond)
-
-	discussion := orch.GetDiscussion()
-	if discussion == nil {
-		respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to create discussion"})
-		return
-	}
-
-	ss.Discussion = discussion
-
-	mu.Lock()
-	sessions[discussion.ID] = ss
-	mu.Unlock()
-
 	respondJSON(w, http.StatusOK, map[string]string{
-		"discussion_id": discussion.ID,
+		"discussion_id": sessionID,
 	})
 }
 
@@ -1214,6 +1340,76 @@ func handleResult(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"html": html,
 	})
+}
+
+// handleStream provides a Server-Sent Events stream for real-time updates.
+// Clients connect here instead of (or in addition to) polling /api/status/.
+func handleStream(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Path[len("/api/stream/"):]
+
+	// Wait briefly for session to be created after /api/start
+	var ss *sessionState
+	for i := 0; i < 20; i++ {
+		mu.RLock()
+		ss, _ = sessions[id]
+		mu.RUnlock()
+		if ss != nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if ss == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// Register subscriber
+	ch := ss.addSSEClient()
+	defer ss.removeSSEClient(ch)
+
+	// Send current state immediately so a late-joining client catches up
+	mu.RLock()
+	agents := make(map[string]*webAgentState, len(ss.Agents))
+	for k, v := range ss.Agents {
+		cp := *v
+		agents[k] = &cp
+	}
+	phase, phaseIcon := ss.Phase, ss.PhaseIcon
+	mu.RUnlock()
+
+	initial, _ := json.Marshal(map[string]interface{}{
+		"type":       "status",
+		"agents":     agents,
+		"phase":      phase,
+		"phase_icon": phaseIcon,
+	})
+	fmt.Fprintf(w, "data: %s\n\n", initial)
+	flusher.Flush()
+
+	ctx := r.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case payload, ok := <-ch:
+			if !ok {
+				return
+			}
+			fmt.Fprintf(w, "data: %s\n\n", payload)
+			flusher.Flush()
+		}
+	}
 }
 
 func respondJSON(w http.ResponseWriter, status int, data interface{}) {
