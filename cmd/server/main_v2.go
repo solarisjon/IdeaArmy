@@ -32,6 +32,7 @@ type webAgentState struct {
 	Color   string `json:"color"`
 	Status  string `json:"status"` // idle, thinking, done
 	Speech  string `json:"speech"`
+	Model   string `json:"model"`
 }
 
 var agentPersonas = map[string]struct {
@@ -246,6 +247,32 @@ func parseProgress(ss *sessionState, msg string) {
 			if a.Status == "thinking" {
 				a.Status = "done"
 			}
+		}
+	}
+
+	// Detect model assignments: "🔧 [role] → model"
+	if strings.Contains(trimmed, "🔧 [") && strings.Contains(trimmed, "→") {
+		idx := strings.Index(trimmed, "🔧 [")
+		if idx >= 0 {
+			rest := trimmed[idx+len("🔧 ["):]
+			if end := strings.Index(rest, "]"); end > 0 {
+				role := rest[:end]
+				model := strings.TrimSpace(rest[end+1:])
+				model = strings.TrimPrefix(model, "→")
+				model = strings.TrimSpace(model)
+				if a, ok := ss.Agents[role]; ok && model != "" {
+					a.Model = model
+				}
+			}
+		}
+	}
+
+	// Detect model assignment phase
+	if strings.Contains(trimmed, "Model Assignment") {
+		ss.Phase = "Assigning Models"
+		ss.PhaseIcon = "🔧"
+		if a, ok := ss.Agents["team_leader"]; ok {
+			a.Status = "thinking"
 		}
 	}
 
@@ -781,6 +808,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                         <span class="status-badge status-idle" id="badge-${role}">snoozing</span>
                     </div>
                     <div class="speech-bubble empty" id="speech-${role}">Charging batteries...</div>
+                    <div class="agent-model" id="model-${role}" style="font-size:11px;color:#8892A0;font-style:italic;margin-top:6px;text-align:right;">⚙ pending...</div>
                 ` + "`" + `;
                 area.appendChild(div);
             });
@@ -809,6 +837,13 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             } else if (agent.speech) {
                 bubble.className = 'speech-bubble';
                 bubble.textContent = agent.speech;
+            }
+
+            // Update model label
+            const modelEl = document.getElementById('model-' + agent.role);
+            if (modelEl && agent.model) {
+                modelEl.textContent = '⚙ ' + agent.model;
+                modelEl.style.color = agent.color || '#8892A0';
             }
         }
 
