@@ -49,6 +49,17 @@ func (a *BaseAgent) GetModel() string { return a.Model }
 
 // RegisterTool registers a tool and its executor for this agent.
 func (a *BaseAgent) RegisterTool(def llm.ToolDefinition, executor func(args string) (string, error)) {
+	// Replace existing tool with same name to prevent duplicate declarations
+	for i, t := range a.tools {
+		if t.Name == def.Name {
+			a.tools[i] = def
+			if a.toolExecutors == nil {
+				a.toolExecutors = make(map[string]func(args string) (string, error))
+			}
+			a.toolExecutors[def.Name] = executor
+			return
+		}
+	}
 	a.tools = append(a.tools, def)
 	if a.toolExecutors == nil {
 		a.toolExecutors = make(map[string]func(args string) (string, error))
