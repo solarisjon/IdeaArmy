@@ -317,8 +317,20 @@ func (o *ConfigurableOrchestrator) runAgentContribution(role models.AgentRole, p
 		return nil // Don't fail the whole discussion
 	}
 
-	// Fire evidence callback if the agent returned structured search results
-	if len(response.SearchResults) > 0 && o.OnEvidence != nil {
+	// Fire evidence callback. For the researcher, always fire even if no tool
+	// was called (some models answer directly without invoking web_search).
+	if o.OnEvidence != nil && role == models.RoleResearcher {
+		results := response.SearchResults
+		if len(results) == 0 {
+			// Synthetic placeholder so the evidence badge always appears
+			results = []interface{}{map[string]interface{}{
+				"title":       "Internal Knowledge (no web search performed)",
+				"description": "The researcher answered from training data. Set FIRECRAWL_API_KEY or provide one in the setup form to enable live web search.",
+				"query":       prompt,
+			}}
+		}
+		o.OnEvidence(string(role), results)
+	} else if len(response.SearchResults) > 0 && o.OnEvidence != nil {
 		o.OnEvidence(string(role), response.SearchResults)
 	}
 

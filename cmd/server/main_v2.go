@@ -1164,7 +1164,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 
         function buildEvidenceCard(r) {
             const card = document.createElement('div');
-            const isPlaceholder = !r.url && r.title === 'Internal Knowledge (no web search)';
+            const isPlaceholder = !r.url && (r.title || '').startsWith('Internal Knowledge');
             card.className = 'evidence-card' + (isPlaceholder ? ' ev-placeholder' : '');
             const title = r.title || r.url || 'Source';
             const desc = r.description ? r.description.slice(0, 160) : '';
