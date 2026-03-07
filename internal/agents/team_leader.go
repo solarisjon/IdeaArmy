@@ -63,7 +63,7 @@ Current task: %s
 Provide your leadership input. What should the team focus on next? Who should contribute?`,
 		discussionContext, input)
 
-	response, err := a.Query(query)
+	response, err := a.QueryStream(query)
 	if err != nil {
 		return nil, fmt.Errorf("team leader query failed: %w", err)
 	}

@@ -17,10 +17,13 @@ type TeamConfig struct {
 	MaxRounds     int  // Number of discussion rounds
 	IdeationCount int  // Number of ideation passes per round (1-3)
 	MinIdeas      int  // Minimum ideas to generate
-	DeepDive  bool // Enable deep dive mode with more back-and-forth
+	DeepDive      bool // Enable deep dive mode with more back-and-forth
 
 	// Quality settings
 	MinScoreThreshold float64 // Minimum score for ideas to be considered
+
+	// Per-agent model selection (populated by team leader or user)
+	AgentModels map[AgentRole]string // e.g. {RoleIdeation: "gpt-4o", RoleCritic: "claude-sonnet-4-20250514"}
 }
 
 // DefaultTeamConfig returns a standard team configuration

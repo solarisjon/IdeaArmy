@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/yourusername/ai-agent-team/internal/llmfactory"
 	"github.com/yourusername/ai-agent-team/internal/models"
 	"github.com/yourusername/ai-agent-team/internal/orchestrator"
@@ -22,6 +23,50 @@ type sessionState struct {
 	Phase      string
 	PhaseIcon  string
 	Log        []string
+
+	// SSE fan-out: registered client channels
+	sseMu      sync.Mutex
+	sseClients []chan string
+
+	EvidenceCards map[string][]interface{} // role → []tools.SearchResult
+}
+
+// notifySSE sends a JSON-encoded event to all SSE subscribers (non-blocking).
+func (ss *sessionState) notifySSE(eventType string, data interface{}) {
+	payload, err := json.Marshal(map[string]interface{}{"type": eventType, "data": data})
+	if err != nil {
+		return
+	}
+	ss.sseMu.Lock()
+	defer ss.sseMu.Unlock()
+	for _, ch := range ss.sseClients {
+		select {
+		case ch <- string(payload):
+		default: // drop if buffer full
+		}
+	}
+}
+
+// addSSEClient registers a new SSE subscriber and returns its channel.
+func (ss *sessionState) addSSEClient() chan string {
+	ch := make(chan string, 300)
+	ss.sseMu.Lock()
+	ss.sseClients = append(ss.sseClients, ch)
+	ss.sseMu.Unlock()
+	return ch
+}
+
+// removeSSEClient deregisters and closes an SSE subscriber channel.
+func (ss *sessionState) removeSSEClient(ch chan string) {
+	ss.sseMu.Lock()
+	defer ss.sseMu.Unlock()
+	for i, c := range ss.sseClients {
+		if c == ch {
+			ss.sseClients = append(ss.sseClients[:i], ss.sseClients[i+1:]...)
+			close(ch)
+			return
+		}
+	}
 }
 
 type webAgentState struct {
@@ -32,6 +77,7 @@ type webAgentState struct {
 	Color   string `json:"color"`
 	Status  string `json:"status"` // idle, thinking, done
 	Speech  string `json:"speech"`
+	Model   string `json:"model"`
 }
 
 var agentPersonas = map[string]struct {
@@ -60,6 +106,7 @@ func main() {
 	http.HandleFunc("/", handleHome)
 	http.HandleFunc("/api/start", handleStart)
 	http.HandleFunc("/api/status/", handleStatus)
+	http.HandleFunc("/api/stream/", handleStream)
 	http.HandleFunc("/api/result/", handleResult)
 
 	fmt.Println("╔════════════════════════════════════════════════════════╗")
@@ -249,6 +296,32 @@ func parseProgress(ss *sessionState, msg string) {
 		}
 	}
 
+	// Detect model assignments: "🔧 [role] → model"
+	if strings.Contains(trimmed, "🔧 [") && strings.Contains(trimmed, "→") {
+		idx := strings.Index(trimmed, "🔧 [")
+		if idx >= 0 {
+			rest := trimmed[idx+len("🔧 ["):]
+			if end := strings.Index(rest, "]"); end > 0 {
+				role := rest[:end]
+				model := strings.TrimSpace(rest[end+1:])
+				model = strings.TrimPrefix(model, "→")
+				model = strings.TrimSpace(model)
+				if a, ok := ss.Agents[role]; ok && model != "" {
+					a.Model = model
+				}
+			}
+		}
+	}
+
+	// Detect model assignment phase
+	if strings.Contains(trimmed, "Model Assignment") {
+		ss.Phase = "Assigning Models"
+		ss.PhaseIcon = "🔧"
+		if a, ok := ss.Agents["team_leader"]; ok {
+			a.Status = "thinking"
+		}
+	}
+
 	// Detect synthesizing
 	if strings.Contains(trimmed, "synthesizing") {
 		if a, ok := ss.Agents["team_leader"]; ok {
@@ -257,6 +330,19 @@ func parseProgress(ss *sessionState, msg string) {
 	}
 
 	ss.Log = append(ss.Log, trimmed)
+
+	// Fan-out current state snapshot to SSE subscribers
+	agents := make(map[string]*webAgentState, len(ss.Agents))
+	for k, v := range ss.Agents {
+		cp := *v
+		agents[k] = &cp
+	}
+	ss.notifySSE("status", map[string]interface{}{
+		"agents":     agents,
+		"phase":      ss.Phase,
+		"phase_icon": ss.PhaseIcon,
+		"log":        trimmed,
+	})
 }
 
 func handleHome(w http.ResponseWriter, r *http.Request) {
@@ -372,7 +458,8 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             display: grid;
             grid-template-columns: 1fr 320px;
             gap: 0;
-            min-height: calc(100vh - 140px);
+            height: calc(100vh - 220px);
+            min-height: 400px;
         }
 
         /* ── Agent Desks ── */
@@ -382,6 +469,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 16px;
             align-content: start;
+            overflow-y: auto;
         }
 
         .desk {
@@ -473,6 +561,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             border-left: 1px solid var(--border);
             display: flex; flex-direction: column;
             overflow: hidden;
+            height: 100%;
         }
         .sidebar-section { padding: 16px; border-bottom: 1px solid var(--border); }
         .sidebar-section h3 { color: var(--electric-cyan); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
@@ -488,6 +577,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         .activity-feed {
             flex: 1; overflow-y: auto; padding: 12px 16px;
             font-size: 0.75rem; line-height: 1.7; color: var(--text-dim);
+            min-height: 120px; max-height: 300px;
         }
         .activity-feed .feed-entry { margin-bottom: 3px; word-break: break-word; }
 
@@ -548,13 +638,172 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 
         /* ── Responsive ── */
         @media (max-width: 900px) {
-            .room-grid { grid-template-columns: 1fr; }
-            .sidebar { border-left: none; border-top: 1px solid var(--border); max-height: 300px; }
+            .room-grid { grid-template-columns: 1fr; height: auto; min-height: 0; }
+            .desks-area { max-height: 60vh; overflow-y: auto; }
+            .sidebar { border-left: none; border-top: 1px solid var(--border); height: auto; max-height: 400px; }
             .team-options { grid-template-columns: 1fr; }
         }
+
+        /* ── Timeline Swimlane ─────────────────────────────────── */
+        .timeline-panel {
+            margin: 0 20px 20px;
+            background: var(--bg-desk);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .timeline-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        .timeline-title { font-weight: 600; color: var(--text-bright); }
+        .timeline-elapsed { font-variant-numeric: tabular-nums; }
+        .timeline-lanes {
+            padding: 10px 16px;
+            overflow-x: auto;
+            min-height: 40px;
+        }
+        .tl-lane {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 6px;
+            min-height: 28px;
+        }
+        .tl-lane-label {
+            width: 110px;
+            flex-shrink: 0;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            text-align: right;
+            padding-right: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .tl-axis {
+            flex: 1;
+            position: relative;
+            height: 28px;
+            border-left: 1px solid rgba(255,255,255,0.1);
+        }
+        .tl-event {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 18px;
+            min-width: 8px;
+            border-radius: 9px;
+            padding: 0 6px;
+            font-size: 0.6rem;
+            line-height: 18px;
+            white-space: nowrap;
+            cursor: default;
+            opacity: 0.9;
+            transition: opacity 0.15s, transform 0.15s;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 140px;
+            color: #000;
+            font-weight: 600;
+        }
+        .tl-event:hover {
+            opacity: 1;
+            transform: translateY(-50%) scale(1.05);
+            z-index: 10;
+            max-width: 300px;
+        }
+
+        /* ── Evidence Cards ─────────────────────────────────────── */
+        /* ── Evidence Drawer ──────────────────────────────────── */
+        .ev-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: rgba(0,212,255,0.12); border: 1px solid rgba(0,212,255,0.3);
+            color: #00d4ff; border-radius: 20px;
+            font-size: 0.62rem; font-weight: 700; padding: 2px 8px;
+            cursor: pointer; user-select: none;
+            transition: background 0.15s, border-color 0.15s;
+            margin-top: 8px;
+        }
+        .ev-badge:hover { background: rgba(0,212,255,0.22); border-color: rgba(0,212,255,0.5); }
+        .ev-badge.ev-placeholder-badge { background: rgba(255,200,100,0.1); border-color: rgba(255,200,100,0.3); color: rgba(255,200,100,0.8); }
+
+        /* Drawer overlay */
+        #evidenceDrawer {
+            position: fixed; top: 0; right: -420px; width: 400px; height: 100vh;
+            background: var(--bg-card); border-left: 1px solid rgba(0,212,255,0.25);
+            z-index: 1000; display: flex; flex-direction: column;
+            transition: right 0.3s cubic-bezier(0.4,0,0.2,1);
+            box-shadow: -8px 0 32px rgba(0,0,0,0.4);
+        }
+        #evidenceDrawer.open { right: 0; }
+        .drawer-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; border-bottom: 1px solid var(--border);
+            background: rgba(0,212,255,0.06);
+        }
+        .drawer-header h3 { margin: 0; font-size: 0.9rem; color: #00d4ff; }
+        .drawer-close {
+            background: none; border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text-dim); font-size: 1rem; width: 28px; height: 28px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .drawer-close:hover { color: var(--text-bright); border-color: var(--text-dim); }
+        .drawer-body { flex: 1; overflow-y: auto; padding: 16px; }
+        .drawer-empty { color: var(--text-dim); font-size: 0.8rem; text-align: center; margin-top: 40px; }
+        .drawer-group { margin-bottom: 20px; }
+        .drawer-group-title {
+            font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px;
+            color: var(--text-dim); margin-bottom: 8px; font-weight: 700;
+        }
+        .evidence-card {
+            background: rgba(0,212,255,0.07);
+            border: 1px solid rgba(0,212,255,0.2);
+            border-radius: 6px; padding: 8px 10px; margin-bottom: 6px;
+            font-size: 0.72rem; line-height: 1.5;
+        }
+        .evidence-card a {
+            color: #00d4ff; text-decoration: none; font-weight: 600;
+            display: block; margin-bottom: 2px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .evidence-card a:hover { text-decoration: underline; }
+        .evidence-card .ev-desc { color: var(--text-dim); }
+        .evidence-card .ev-notitle { color: var(--text-dim); font-style: italic; }
+        .evidence-card.ev-placeholder { border-color: rgba(255,200,100,0.2); background: rgba(255,200,100,0.04); }
+        .evidence-card.ev-placeholder .ev-notitle { color: rgba(255,200,100,0.6); }
+        .evidence-card .ev-query {
+            margin-top: 3px; font-style: italic;
+            color: rgba(255,255,255,0.3); font-size: 0.6rem;
+        }
+        /* Dim backdrop */
+        #drawerBackdrop {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 999;
+        }
+        #drawerBackdrop.open { display: block; }
     </style>
 </head>
 <body>
+    <!-- ── Evidence Drawer (global overlay) ── -->
+    <div id="drawerBackdrop" onclick="closeEvidenceDrawer()"></div>
+    <div id="evidenceDrawer">
+        <div class="drawer-header">
+            <h3>🔍 Research Evidence</h3>
+            <button class="drawer-close" onclick="closeEvidenceDrawer()" title="Close (Esc)">✕</button>
+        </div>
+        <div class="drawer-body" id="drawerBody">
+            <div class="drawer-empty">No research evidence yet.<br>Evidence cards will appear here as the Researcher agent searches the web.</div>
+        </div>
+    </div>
+
     <div class="war-room-header">
         <h1>🤖 THE IDEA FACTORY</h1>
         <div class="subtitle">A Playful Robot Army for Collaborative Brainstorming</div>
@@ -568,6 +817,12 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             <label>Your LLM Token <span style="color:#ef4444">*</span></label>
             <input type="password" id="apiKey" placeholder="user=yourname&amp;key=sk_..." required>
             <small>Your personal LLM proxy key (format: user=name&amp;key=sk_...) or OpenAI API key. Each user must provide their own token.</small>
+        </div>
+
+        <div class="field">
+            <label>Firecrawl API Key <span style="color:#6b7280;font-weight:400;font-size:0.8em;">(optional)</span></label>
+            <input type="password" id="firecrawlKey" placeholder="fc-...">
+            <small>Enables live web search for the Researcher agent. Get a free key at <a href="https://firecrawl.dev" target="_blank" rel="noopener" style="color:#a5b4fc;">firecrawl.dev</a>. Without it, the researcher uses LLM knowledge only.</small>
         </div>
 
         <div style="background:rgba(99,102,241,0.08);border-left:3px solid #6366f1;border-radius:6px;padding:14px 18px;margin-bottom:8px;font-size:0.9rem;line-height:1.6;color:#c4c9e2;">
@@ -699,6 +954,13 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                 <div class="activity-feed" id="activityFeed"></div>
             </div>
         </div>
+        <div class="timeline-panel" id="timelinePanel">
+            <div class="timeline-header">
+                <span class="timeline-title">⏱ Agent Timeline</span>
+                <span class="timeline-elapsed" id="timelineElapsed"></span>
+            </div>
+            <div class="timeline-lanes" id="timelineLanes"></div>
+        </div>
     </div>
 
     <!-- ── Result Overlay ── -->
@@ -721,6 +983,16 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         let selectedTeam = 'standard';
         let seenLogCount = 0;
         let agentRoles = [];
+
+        const agentPersonas = {
+            "team_leader": {name: "Commander Bleep", icon: "🤖", color: "#FF6B6B"},
+            "ideation":    {name: "Sparx",           icon: "💡", color: "#51E898"},
+            "moderator":   {name: "Balancebot",       icon: "🔮", color: "#7B68EE"},
+            "researcher":  {name: "Digger-3000",      icon: "🔍", color: "#00D4FF"},
+            "critic":      {name: "Glitchy",          icon: "👾", color: "#FFD93D"},
+            "implementer": {name: "Bolt",             icon: "🔧", color: "#FF8C42"},
+            "ui_creator":  {name: "Doodlebot",        icon: "🎨", color: "#FF6BC1"},
+        };
 
         const TEAM_AGENTS = {
             standard: ['team_leader','ideation','moderator','ui_creator'],
@@ -781,6 +1053,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                         <span class="status-badge status-idle" id="badge-${role}">snoozing</span>
                     </div>
                     <div class="speech-bubble empty" id="speech-${role}">Charging batteries...</div>
+                    <div class="agent-model" id="model-${role}" style="font-size:11px;color:#8892A0;font-style:italic;margin-top:6px;text-align:right;">⚙ pending...</div>
                 ` + "`" + `;
                 area.appendChild(div);
             });
@@ -810,23 +1083,34 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                 bubble.className = 'speech-bubble';
                 bubble.textContent = agent.speech;
             }
+
+            // Update model label
+            const modelEl = document.getElementById('model-' + agent.role);
+            if (modelEl && agent.model) {
+                modelEl.textContent = '⚙ ' + agent.model;
+                modelEl.style.color = agent.color || '#8892A0';
+            }
         }
 
-        // Restore saved token on page load
+        // Restore saved tokens on page load
         (function() {
             const saved = localStorage.getItem('ideaarmy_token');
             if (saved) document.getElementById('apiKey').value = saved;
+            const savedFc = localStorage.getItem('ideaarmy_firecrawl');
+            if (savedFc) document.getElementById('firecrawlKey').value = savedFc;
         })();
 
         async function launchMission() {
             const apiKey = document.getElementById('apiKey').value.trim();
+            const firecrawlKey = document.getElementById('firecrawlKey').value.trim();
             const topic = document.getElementById('topic').value.trim();
 
             if (!apiKey) { alert('Please provide your LLM token'); return; }
             if (!topic) { alert('Please provide a mission objective'); return; }
 
-            // Remember token in browser for next visit
+            // Remember tokens in browser for next visit
             localStorage.setItem('ideaarmy_token', apiKey);
+            if (firecrawlKey) localStorage.setItem('ideaarmy_firecrawl', firecrawlKey);
 
             document.getElementById('setup').style.display = 'none';
             document.getElementById('warRoom').classList.add('active');
@@ -834,7 +1118,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             const roles = selectedTeam === 'custom' ? getCustomAgentRoles() : TEAM_AGENTS[selectedTeam] || TEAM_AGENTS.standard;
             buildDesks(roles);
 
-            const body = { api_key: apiKey, topic: topic, team_config: selectedTeam };
+            const body = { api_key: apiKey, firecrawl_key: firecrawlKey, topic: topic, team_config: selectedTeam };
             if (selectedTeam === 'custom') {
                 body.custom = {
                     researcher:    document.getElementById('chkResearcher').checked,
@@ -855,10 +1139,213 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                 if (data.error) throw new Error(data.error);
 
                 discussionId = data.discussion_id;
-                pollTimer = setInterval(pollStatus, 1500);
+                connectSSE(discussionId);
             } catch(e) {
                 alert('Launch failed: ' + e.message);
                 resetToSetup();
+            }
+        }
+
+        let eventSource = null;
+
+        // ── Evidence Drawer ──────────────────────────────────────────
+        // allEvidence: role → [{title, url, description, query}, ...]
+        var allEvidence = {};
+
+        function openEvidenceDrawer() {
+            document.getElementById('evidenceDrawer').classList.add('open');
+            document.getElementById('drawerBackdrop').classList.add('open');
+        }
+        function closeEvidenceDrawer() {
+            document.getElementById('evidenceDrawer').classList.remove('open');
+            document.getElementById('drawerBackdrop').classList.remove('open');
+        }
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeEvidenceDrawer(); });
+
+        function buildEvidenceCard(r) {
+            const card = document.createElement('div');
+            const isPlaceholder = !r.url && r.title === 'Internal Knowledge (no web search)';
+            card.className = 'evidence-card' + (isPlaceholder ? ' ev-placeholder' : '');
+            const title = r.title || r.url || 'Source';
+            const desc = r.description ? r.description.slice(0, 160) : '';
+            const titleHtml = r.url
+                ? '<a href="' + r.url + '" target="_blank" rel="noopener">' + escapeHtml(title) + '</a>'
+                : '<span class="ev-notitle">' + escapeHtml(title) + '</span>';
+            card.innerHTML = titleHtml +
+                (desc ? '<div class="ev-desc">' + escapeHtml(desc) + '</div>' : '') +
+                (r.query ? '<div class="ev-query">🔍 ' + escapeHtml(r.query) + '</div>' : '');
+            return card;
+        }
+
+        function refreshDrawer() {
+            const body = document.getElementById('drawerBody');
+            const roles = Object.keys(allEvidence);
+            if (roles.length === 0) return;
+            body.innerHTML = '';
+            roles.forEach(function(role) {
+                const results = allEvidence[role];
+                if (!results || results.length === 0) return;
+                const group = document.createElement('div');
+                group.className = 'drawer-group';
+                const persona = agentPersonas[role] || { name: role, emoji: '🤖' };
+                const liveCount = results.filter(r => r.url).length;
+                const label = liveCount > 0 ? liveCount + ' sources' : results.length + ' queries';
+                group.innerHTML = '<div class="drawer-group-title">' + persona.emoji + ' ' + persona.name + ' — ' + label + '</div>';
+                results.forEach(function(r) { group.appendChild(buildEvidenceCard(r)); });
+                body.appendChild(group);
+            });
+        }
+
+        function updateEvidenceBadge(role, results) {
+            const desk = document.getElementById('desk-' + role);
+            if (!desk) return;
+            const liveCount = results.filter(r => r.url).length;
+            const total = results.length;
+            const isPlaceholder = liveCount === 0;
+            let badge = desk.querySelector('.ev-badge');
+            if (!badge) {
+                badge = document.createElement('div');
+                badge.className = 'ev-badge' + (isPlaceholder ? ' ev-placeholder-badge' : '');
+                badge.onclick = openEvidenceDrawer;
+                desk.appendChild(badge);
+            }
+            badge.className = 'ev-badge' + (isPlaceholder ? ' ev-placeholder-badge' : '');
+            badge.innerHTML = '🔍 ' + (isPlaceholder ? total + ' queries' : liveCount + ' sources');
+        }
+
+        function handleEvidenceUpdate(role, results) {
+            if (!allEvidence[role]) allEvidence[role] = [];
+            allEvidence[role] = allEvidence[role].concat(results);
+            updateEvidenceBadge(role, allEvidence[role]);
+            refreshDrawer();
+            // Auto-open drawer on first real evidence
+            const hasNew = results.some(r => r.url);
+            if (hasNew && Object.values(allEvidence).flat().filter(r => r.url).length === results.filter(r => r.url).length) {
+                openEvidenceDrawer();
+            }
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        // ── Timeline Swimlane ────────────────────────────────────────
+        var tlStartTime = null;
+
+        function renderSwimLane(messages, agents, startTime) {
+            const lanesEl = document.getElementById('timelineLanes');
+            const elapsedEl = document.getElementById('timelineElapsed');
+            if (!lanesEl || !messages || messages.length === 0) return;
+
+            const now = new Date();
+            const start = startTime ? new Date(startTime) : (tlStartTime || now);
+            if (!tlStartTime && startTime) tlStartTime = new Date(startTime);
+
+            const totalMs = Math.max(now - (tlStartTime || start), 1000);
+            elapsedEl && (elapsedEl.textContent = formatElapsed(totalMs));
+
+            // Group messages by sender
+            const roles = Object.keys(agents || {});
+            if (roles.length === 0) return;
+
+            const lanes = {};
+            roles.forEach(function(r) { lanes[r] = []; });
+            messages.forEach(function(m) {
+                if (lanes[m.from] !== undefined) lanes[m.from].push(m);
+            });
+
+            lanesEl.innerHTML = '';
+            roles.forEach(function(role) {
+                const persona = agentPersonas[role];
+                if (!persona) return;
+                const events = lanes[role] || [];
+
+                const lane = document.createElement('div');
+                lane.className = 'tl-lane';
+
+                const label = document.createElement('div');
+                label.className = 'tl-lane-label';
+                label.textContent = (persona.icon || '') + ' ' + (persona.name || role);
+                lane.appendChild(label);
+
+                const axis = document.createElement('div');
+                axis.className = 'tl-axis';
+
+                events.forEach(function(ev) {
+                    const evTime = new Date(ev.timestamp);
+                    const offsetMs = evTime - (tlStartTime || start);
+                    const pct = Math.min(Math.max((offsetMs / totalMs) * 100, 0), 97);
+
+                    const pill = document.createElement('div');
+                    pill.className = 'tl-event';
+                    pill.style.left = pct + '%';
+                    pill.style.background = persona.color || '#888';
+                    pill.title = ev.preview || ev.type;
+                    pill.textContent = ev.preview ? ev.preview.slice(0, 30) : ev.type;
+                    axis.appendChild(pill);
+                });
+
+                lane.appendChild(axis);
+                lanesEl.appendChild(lane);
+            });
+        }
+
+        function formatElapsed(ms) {
+            var s = Math.floor(ms / 1000);
+            var m = Math.floor(s / 60);
+            s = s % 60;
+            return m + ':' + (s < 10 ? '0' : '') + s;
+        }
+
+        function connectSSE(id) {
+            if (eventSource) eventSource.close();
+            eventSource = new EventSource('/api/stream/' + id);
+            eventSource.onmessage = function(e) {
+                try { handleSSEEvent(JSON.parse(e.data)); } catch(err) {}
+            };
+            eventSource.onerror = function() {
+                eventSource.close();
+                eventSource = null;
+                // Fall back to polling
+                pollTimer = setInterval(pollStatus, 1500);
+            };
+        }
+
+        function handleSSEEvent(event) {
+            if (event.type === 'status') {
+                const data = event.data || event;
+                if (data.phase) {
+                    document.getElementById('phaseText').textContent = (data.phase_icon || '⏳') + ' ' + data.phase;
+                }
+                if (data.agents) {
+                    Object.values(data.agents).forEach(updateDesk);
+                }
+                if (data.log) {
+                    const feed = document.getElementById('activityFeed');
+                    const div = document.createElement('div');
+                    div.className = 'feed-entry';
+                    div.textContent = data.log;
+                    feed.appendChild(div);
+                    feed.scrollTop = feed.scrollHeight;
+                }
+            } else if (event.type === 'chunk') {
+                const d = event.data;
+                if (d && d.role && d.chunk) {
+                    const bubble = document.getElementById('speech-' + d.role);
+                    if (bubble) {
+                        if (bubble.querySelector('.typing-indicator')) {
+                            bubble.innerHTML = '';
+                            bubble.className = 'speech-bubble';
+                        }
+                        bubble.textContent += d.chunk;
+                    }
+                }
+            } else if (data.type === 'evidence') {
+                handleEvidenceUpdate(data.data.role, data.data.results);
+            }
+            // Check status/completion via periodic poll (keeps it simple)
+            if (!pollTimer) {
+                pollTimer = setInterval(pollStatus, 3000);
             }
         }
 
@@ -873,7 +1360,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                     document.getElementById('phaseText').textContent = (data.phase_icon || '⏳') + ' ' + data.phase;
                 }
 
-                // Update agent desks
+                // Update agent desks (provides model + full speech state)
                 if (data.agents) {
                     Object.values(data.agents).forEach(updateDesk);
                 }
@@ -892,8 +1379,8 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                     });
                 }
 
-                // Update activity feed
-                if (data.log && data.log.length > seenLogCount) {
+                // Update activity feed (only when not using SSE)
+                if (!eventSource && data.log && data.log.length > seenLogCount) {
                     const feed = document.getElementById('activityFeed');
                     for (let i = seenLogCount; i < data.log.length; i++) {
                         const div = document.createElement('div');
@@ -905,15 +1392,26 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                     feed.scrollTop = feed.scrollHeight;
                 }
 
+                renderSwimLane(data.messages, data.agents, data.start_time);
+                if (data.evidence) {
+                    Object.keys(data.evidence).forEach(function(role) {
+                        handleEvidenceUpdate(role, data.evidence[role]);
+                    });
+                }
+
                 // Check completion
                 if (data.status === 'completed') {
                     clearInterval(pollTimer);
+                    pollTimer = null;
+                    if (eventSource) { eventSource.close(); eventSource = null; }
                     document.getElementById('phaseText').innerHTML =
                         '🙌 Bots nailed it! <button class="btn-new" onclick="showResult()">✨ See What They Built!</button> <button class="btn-new" onclick="resetToSetup()">🤖 Deploy Again!</button>';
                     celebrateSparkles();
                     showResult();
                 } else if (data.status === 'failed') {
                     clearInterval(pollTimer);
+                    pollTimer = null;
+                    if (eventSource) { eventSource.close(); eventSource = null; }
                     document.getElementById('phaseText').textContent = '❌ Bots hit a glitch — ' + (data.error || 'Unknown error');
                 }
             } catch(e) {
@@ -989,15 +1487,16 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		APIKey     string `json:"api_key"`
-		Topic      string `json:"topic"`
-		TeamConfig string `json:"team_config"`
-		Custom     struct {
-			Researcher   bool `json:"researcher"`
-			Critic       bool `json:"critic"`
-			Implementer  bool `json:"implementer"`
-			IdeationCount int `json:"ideation_count"`
-			MaxRounds    int  `json:"max_rounds"`
+		APIKey       string `json:"api_key"`
+		FirecrawlKey string `json:"firecrawl_key"`
+		Topic        string `json:"topic"`
+		TeamConfig   string `json:"team_config"`
+		Custom       struct {
+			Researcher    bool `json:"researcher"`
+			Critic        bool `json:"critic"`
+			Implementer   bool `json:"implementer"`
+			IdeationCount int  `json:"ideation_count"`
+			MaxRounds     int  `json:"max_rounds"`
 		} `json:"custom"`
 	}
 
@@ -1056,13 +1555,16 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 		config = models.StandardTeamConfig()
 	}
 
-	client, err := llmfactory.NewClientAuto(req.APIKey)
+	cfg, err := llmfactory.ResolveBackendAuto(req.APIKey)
 	if err != nil {
-		respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Failed to create LLM client: %v", err)})
+		respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Failed to resolve LLM backend: %v", err)})
 		return
 	}
 
-	orch := orchestrator.NewConfigurableOrchestrator(client, config)
+	orch := orchestrator.NewConfigurableOrchestrator(cfg, config)
+	if req.FirecrawlKey != "" {
+		orch.FirecrawlKey = req.FirecrawlKey
+	}
 
 	// Build agent states for this team
 	agentStates := make(map[string]*webAgentState)
@@ -1070,14 +1572,14 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 		agentStates[string(role)] = newAgentState(string(role))
 	}
 
-	// Create session state
+	// Create session state upfront so SSE clients can connect immediately
 	ss := &sessionState{
 		Agents:    agentStates,
 		Phase:     "Powering up the bots...",
 		PhaseIcon: "⚡",
 	}
 
-	// Wire up progress callback to parse agent updates
+	// Wire up progress callback to parse agent updates and fan-out to SSE
 	orch.OnProgress = func(message string) {
 		log.Println(message)
 		mu.Lock()
@@ -1085,34 +1587,59 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 		mu.Unlock()
 	}
 
+	// Wire up streaming chunk callback for real-time token delivery via SSE
+	orch.OnChunk = func(role, chunk string) {
+		ss.notifySSE("chunk", map[string]string{"role": role, "chunk": chunk})
+		// Also update the agent speech buffer in session state
+		mu.Lock()
+		if a, ok := ss.Agents[role]; ok {
+			a.Speech += chunk
+		}
+		mu.Unlock()
+	}
+
+	// Wire up evidence callback to capture researcher search results
+	orch.OnEvidence = func(role string, results []interface{}) {
+		mu.Lock()
+		if ss.EvidenceCards == nil {
+			ss.EvidenceCards = make(map[string][]interface{})
+		}
+		ss.EvidenceCards[role] = append(ss.EvidenceCards[role], results...)
+		mu.Unlock()
+		// Notify SSE clients so the UI can update evidence cards immediately
+		ss.notifySSE("evidence", map[string]interface{}{"role": role, "results": results})
+	}
+
+	// Pre-generate a discussion ID and register session immediately
+	// so SSE clients can connect before the discussion fully initializes.
+	sessionID := uuid.New().String()
+	ss.Discussion = &models.Discussion{
+		ID:     sessionID,
+		Topic:  req.Topic,
+		Status: "running",
+	}
+	mu.Lock()
+	sessions[sessionID] = ss
+	mu.Unlock()
+
 	// Start discussion in background
 	go func() {
 		if err := orch.StartDiscussion(req.Topic); err != nil {
 			log.Printf("Discussion failed: %v", err)
 			mu.Lock()
-			if orch.GetDiscussion() != nil {
-				orch.GetDiscussion().Status = "failed"
-			}
+			ss.Discussion.Status = "failed"
+			mu.Unlock()
+		}
+		// Update session with final discussion object
+		if d := orch.GetDiscussion(); d != nil {
+			mu.Lock()
+			ss.Discussion = d
 			mu.Unlock()
 		}
 	}()
 
-	time.Sleep(500 * time.Millisecond)
-
-	discussion := orch.GetDiscussion()
-	if discussion == nil {
-		respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to create discussion"})
-		return
-	}
-
-	ss.Discussion = discussion
-
-	mu.Lock()
-	sessions[discussion.ID] = ss
-	mu.Unlock()
-
 	respondJSON(w, http.StatusOK, map[string]string{
-		"discussion_id": discussion.ID,
+		"discussion_id": sessionID,
 	})
 }
 
@@ -1144,6 +1671,22 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		finalIdea = ss.Discussion.FinalIdea.Title
 	}
 
+	// Build slim message list for swimlane (from, type, timestamp, content preview)
+	type msgInfo struct {
+		From      string    `json:"from"`
+		Type      string    `json:"type"`
+		Timestamp time.Time `json:"timestamp"`
+		Preview   string    `json:"preview"`
+	}
+	msgs := make([]msgInfo, 0, len(ss.Discussion.Messages))
+	for _, m := range ss.Discussion.Messages {
+		preview := m.Content
+		if len(preview) > 120 {
+			preview = preview[:120] + "…"
+		}
+		msgs = append(msgs, msgInfo{From: m.From, Type: m.Type, Timestamp: m.Timestamp, Preview: preview})
+	}
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":     ss.Discussion.Status,
 		"phase":      ss.Phase,
@@ -1153,6 +1696,9 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		"final_idea": finalIdea,
 		"round":      ss.Discussion.Round,
 		"log":        ss.Log,
+		"messages":   msgs,
+		"evidence":   ss.EvidenceCards,
+		"start_time": ss.Discussion.StartTime,
 	})
 }
 
@@ -1169,16 +1715,94 @@ func handleResult(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var html string
+	var conceptMap string
 	for _, msg := range ss.Discussion.Messages {
-		if msg.Type == "visualization" {
+		switch msg.Type {
+		case "visualization":
 			html = msg.Content
-			break
+		case "concept_map":
+			conceptMap = msg.Content
 		}
+	}
+	// If the concept map was injected into the idea sheet it's already in html.
+	// conceptMap is only set when visualization wasn't available.
+	if html == "" && conceptMap != "" {
+		html = conceptMap
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"html": html,
 	})
+}
+
+// handleStream provides a Server-Sent Events stream for real-time updates.
+// Clients connect here instead of (or in addition to) polling /api/status/.
+func handleStream(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Path[len("/api/stream/"):]
+
+	// Wait briefly for session to be created after /api/start
+	var ss *sessionState
+	for i := 0; i < 20; i++ {
+		mu.RLock()
+		ss, _ = sessions[id]
+		mu.RUnlock()
+		if ss != nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if ss == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// Register subscriber
+	ch := ss.addSSEClient()
+	defer ss.removeSSEClient(ch)
+
+	// Send current state immediately so a late-joining client catches up
+	mu.RLock()
+	agents := make(map[string]*webAgentState, len(ss.Agents))
+	for k, v := range ss.Agents {
+		cp := *v
+		agents[k] = &cp
+	}
+	phase, phaseIcon := ss.Phase, ss.PhaseIcon
+	mu.RUnlock()
+
+	initial, _ := json.Marshal(map[string]interface{}{
+		"type":       "status",
+		"agents":     agents,
+		"phase":      phase,
+		"phase_icon": phaseIcon,
+	})
+	fmt.Fprintf(w, "data: %s\n\n", initial)
+	flusher.Flush()
+
+	ctx := r.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case payload, ok := <-ch:
+			if !ok {
+				return
+			}
+			fmt.Fprintf(w, "data: %s\n\n", payload)
+			flusher.Flush()
+		}
+	}
 }
 
 func respondJSON(w http.ResponseWriter, status int, data interface{}) {

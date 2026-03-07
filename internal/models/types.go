@@ -55,8 +55,9 @@ const (
 
 // AgentResponse represents an agent's response
 type AgentResponse struct {
-	AgentRole AgentRole              `json:"agent_role"`
-	Content   string                 `json:"content"`
-	Ideas     []Idea                 `json:"ideas,omitempty"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	AgentRole     AgentRole              `json:"agent_role"`
+	Content       string                 `json:"content"`
+	Ideas         []Idea                 `json:"ideas,omitempty"`
+	Metadata      map[string]interface{} `json:"metadata,omitempty"`
+	SearchResults []interface{}          `json:"search_results,omitempty"` // tools.SearchResult (interface to avoid import cycle)
 }

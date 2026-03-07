@@ -34,3 +34,18 @@ func NewClientAuto(apiKeyOverride string) (llm.Client, error) {
 	}
 	return NewClient(cfg)
 }
+
+// NewClientWithModel creates a client identical to one from cfg but using the
+// specified model. If model is empty, the default from cfg is used.
+func NewClientWithModel(cfg *llm.BackendConfig, model string) (llm.Client, error) {
+	override := *cfg // shallow copy
+	if model != "" {
+		override.Model = model
+	}
+	return NewClient(&override)
+}
+
+// ResolveBackendAuto is a convenience wrapper around llm.ResolveBackend.
+func ResolveBackendAuto(apiKeyOverride string) (*llm.BackendConfig, error) {
+	return llm.ResolveBackend(apiKeyOverride)
+}

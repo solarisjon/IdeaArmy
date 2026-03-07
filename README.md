@@ -41,6 +41,7 @@ This system orchestrates a team of four specialized AI agents, each with unique 
 - **Dual Interface**: Use via CLI for quick sessions or web UI for richer experience
 - **TUI War Room**: Terminal UI with persona-named agents and a "War Room" theme; auto-exits after completion
 - **Multi-Backend LLM Support**: Works with Anthropic Claude, OpenAI, and NetApp LLM Proxy
+- **Per-Agent Model Selection**: Team leader automatically assigns different models to agents based on their roles
 - **Real-time Progress**: Track the discussion as it unfolds
 
 ## Prerequisites
@@ -193,6 +194,18 @@ Override with the `LLM_MODEL` environment variable:
 ```bash
 export LLM_MODEL="claude-haiku-4-20250514"
 ```
+
+### Per-Agent Model Selection
+
+The system supports running different LLM models for different agents. Before the discussion begins, the **Team Leader** agent:
+
+1. **Discovers available models** by querying the backend's `/models` endpoint (OpenAI-compatible APIs) or using a curated list (Anthropic)
+2. **Assigns models** to each agent based on their role — e.g., assigning a more capable model to the critic and a faster model to the researcher
+3. **Creates per-agent clients** — each agent gets its own LLM client instance with its assigned model
+
+The assigned model is displayed at the bottom of each agent's card in the TUI interface (shown as `⚙ model-name`).
+
+This feature is automatic and requires no configuration. To override model assignments, set `LLM_MODEL` to force all agents to use the same model.
 
 ### Agent Personalities
 

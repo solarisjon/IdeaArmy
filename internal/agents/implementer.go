@@ -63,7 +63,7 @@ Task: %s
 Focus on practical implementation. How would this actually be built or executed?`,
 		discussionContext, input)
 
-	response, err := a.Query(query)
+	response, err := a.QueryStream(query)
 	if err != nil {
 		return nil, fmt.Errorf("implementer query failed: %w", err)
 	}

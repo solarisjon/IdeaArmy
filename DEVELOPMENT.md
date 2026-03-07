@@ -253,6 +253,19 @@ Override controls:
 
 Default model settings are in the respective client packages (`internal/claude/`, `internal/openai/`).
 
+### Per-Agent Model Selection
+
+The orchestrator supports running different models per agent. During startup:
+1. `llm.ListModels()` queries the backend for available models
+2. The team leader agent assigns appropriate models to each agent role
+3. The orchestrator creates separate `llm.Client` instances per agent via `llmfactory.NewClientWithModel()`
+4. Each agent's assigned model is tracked in `BaseAgent.Model` and accessible via `GetModel()`
+
+Key files:
+- `internal/llm/models.go` — model discovery (`ListModels`, `ModelInfo`)
+- `internal/llmfactory/factory.go` — `NewClientWithModel()`, `ResolveBackendAuto()`
+- `internal/orchestrator/orchestrator_v2.go` — `runModelAssignment()` phase
+
 ## Testing Strategy
 
 ### Manual Testing Checklist

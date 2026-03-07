@@ -16,16 +16,22 @@ var discussionResult struct {
 	err        error
 }
 
-// Run starts the TUI and runs the discussion
-func Run(client llm.Client, config *models.TeamConfig, topic string) (*models.Discussion, error) {
+// Run starts the TUI and runs the discussion.
+// Accepts a BackendConfig to enable per-agent model selection.
+func Run(cfg *llm.BackendConfig, config *models.TeamConfig, topic string) (*models.Discussion, error) {
 	// Create the TUI model
 	m := NewModel(config, topic)
+
+	// Set initial model on all agents (will be updated after model assignment)
+	for _, agent := range m.Agents {
+		agent.Model = cfg.Model
+	}
 
 	// Create the bubbletea program
 	p := tea.NewProgram(m)
 
 	// Start the discussion in a goroutine
-	go runDiscussion(p, client, config, topic)
+	go runDiscussion(p, cfg, config, topic)
 
 	// Run the TUI
 	finalModel, err := p.Run()
@@ -45,13 +51,17 @@ func Run(client llm.Client, config *models.TeamConfig, topic string) (*models.Di
 }
 
 // runDiscussion runs the orchestration and sends updates to the TUI
-func runDiscussion(p *tea.Program, client llm.Client, config *models.TeamConfig, topic string) {
-	// Create orchestrator
-	orch := orchestrator.NewConfigurableOrchestrator(client, config)
+func runDiscussion(p *tea.Program, cfg *llm.BackendConfig, config *models.TeamConfig, topic string) {
+	// Create orchestrator with BackendConfig for per-agent model selection
+	orch := orchestrator.NewConfigurableOrchestrator(cfg, config)
+
+	// Wire streaming chunks directly to TUI agent speech bubbles
+	orch.OnChunk = func(role, chunk string) {
+		p.Send(AgentChunkMsg{Role: role, Chunk: chunk})
+	}
 
 	// Set up progress callback to send updates to TUI
 	orch.OnProgress = func(message string) {
-		// Parse the message to determine what kind of update it is
 		p.Send(LogMsg(message))
 
 		// Detect phase changes
@@ -65,7 +75,7 @@ func runDiscussion(p *tea.Program, client llm.Client, config *models.TeamConfig,
 			})
 		}
 
-		// Detect agent speech (📣 [role] content)
+		// Detect agent speech (📣 [role] content) — clears streaming buffer, sets final text
 		if strings.Contains(message, "📣 [") {
 			role, speech := extractSpeech(message)
 			if role != "" {
@@ -78,7 +88,7 @@ func runDiscussion(p *tea.Program, client llm.Client, config *models.TeamConfig,
 			}
 		}
 
-		// Detect agent activity
+		// Detect agent starting — clear speech buffer so streaming fills it fresh
 		if strings.Contains(message, "contributing") || strings.Contains(message, "working") {
 			role := extractAgentRole(message)
 			if role != "" {
@@ -86,35 +96,39 @@ func runDiscussion(p *tea.Program, client llm.Client, config *models.TeamConfig,
 					Role:    role,
 					Status:  "working",
 					Message: extractAgentMessage(message),
+					Speech:  "", // Clear for streaming
 				})
+			}
+		}
+
+		// Detect model assignments (🔧 [role] → model)
+		if strings.Contains(message, "🔧 [") && strings.Contains(message, "→") {
+			role, model := extractModelAssignment(message)
+			if role != "" && model != "" {
+				p.Send(ModelAssignedMsg{Role: role, Model: model})
 			}
 		}
 
 		// Detect leader/moderator/ui_creator phase starts
 		if strings.Contains(message, "Team Leader synthesizing") {
-			p.Send(AgentUpdateMsg{Role: "team_leader", Status: "working", Message: "Synthesizing round..."})
+			p.Send(AgentUpdateMsg{Role: "team_leader", Status: "working", Message: "Synthesizing round...", Speech: ""})
 		}
 		if strings.Contains(message, "Final Validation") {
-			p.Send(AgentUpdateMsg{Role: "moderator", Status: "working", Message: "Scoring ideas..."})
+			p.Send(AgentUpdateMsg{Role: "moderator", Status: "working", Message: "Scoring ideas...", Speech: ""})
 		}
 		if strings.Contains(message, "Final Selection") {
-			p.Send(AgentUpdateMsg{Role: "team_leader", Status: "working", Message: "Selecting best idea..."})
+			p.Send(AgentUpdateMsg{Role: "team_leader", Status: "working", Message: "Selecting best idea...", Speech: ""})
 		}
 		if strings.Contains(message, "Creating Visual Idea Sheet") {
-			p.Send(AgentUpdateMsg{Role: "ui_creator", Status: "working", Message: "Painting the vision..."})
+			p.Send(AgentUpdateMsg{Role: "ui_creator", Status: "working", Message: "Painting the vision...", Speech: ""})
 		}
 		if strings.Contains(message, "Team Leader Kickoff") {
-			p.Send(AgentUpdateMsg{Role: "team_leader", Status: "working", Message: "Setting the direction..."})
+			p.Send(AgentUpdateMsg{Role: "team_leader", Status: "working", Message: "Setting the direction...", Speech: ""})
 		}
 
-		// Detect idea generation
-		if strings.Contains(message, "New idea:") || strings.Contains(message, "💡") {
-			// Ideas will be extracted from the discussion object later
-		}
-
-		// Update progress based on message
-		if strings.Contains(message, "Round") {
-			round := extractRound(message)
+		// Update progress based on round detection
+		round := extractRound(message)
+		if round > 0 {
 			progress := float64(round) / float64(config.MaxRounds)
 			p.Send(ProgressMsg{
 				Phase:    extractPhase(message),
@@ -362,4 +376,25 @@ func extractJSONValue(line string) string {
 	val = strings.TrimSuffix(val, ",")
 	val = strings.Trim(val, `"`)
 	return val
+}
+
+// extractModelAssignment parses "🔧 [role] → model" messages.
+func extractModelAssignment(message string) (string, string) {
+	idx := strings.Index(message, "🔧 [")
+	if idx < 0 {
+		return "", ""
+	}
+	rest := message[idx+len("🔧 ["):]
+	endBracket := strings.Index(rest, "]")
+	if endBracket < 0 {
+		return "", ""
+	}
+	role := strings.TrimSpace(rest[:endBracket])
+	// Find "→" separator
+	arrowIdx := strings.Index(rest, "→")
+	if arrowIdx < 0 {
+		return "", ""
+	}
+	model := strings.TrimSpace(rest[arrowIdx+len("→"):])
+	return role, model
 }

@@ -22,8 +22,8 @@ func main() {
 	fmt.Println("╚════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
-	// Create LLM client (auto-detects backend from env vars)
-	client, err := llmfactory.NewClientAuto("")
+	// Resolve LLM backend config (auto-detects from env vars)
+	cfg, err := llmfactory.ResolveBackendAuto("")
 	if err != nil {
 		// Fall back to interactive prompt
 		fmt.Print("Enter your API key: ")
@@ -33,9 +33,9 @@ func main() {
 		if apiKey == "" {
 			log.Fatal("API key is required. Set ANTHROPIC_API_KEY, LLMPROXY_KEY, OPENAI_API_KEY, or LLM_API_KEY.")
 		}
-		client, err = llmfactory.NewClientAuto(apiKey)
+		cfg, err = llmfactory.ResolveBackendAuto(apiKey)
 		if err != nil {
-			log.Fatalf("Failed to create LLM client: %v", err)
+			log.Fatalf("Failed to resolve LLM backend: %v", err)
 		}
 	}
 
@@ -60,8 +60,8 @@ func main() {
 	fmt.Println("\n🚀 Launching AI Agent Team...\n")
 	time.Sleep(500 * time.Millisecond) // Brief pause for effect
 
-	// Run the TUI-based discussion
-	discussion, err := tui.Run(client, config, topic)
+	// Run the TUI-based discussion (with BackendConfig for per-agent model selection)
+	discussion, err := tui.Run(cfg, config, topic)
 	if err != nil {
 		log.Fatalf("Discussion failed: %v", err)
 	}

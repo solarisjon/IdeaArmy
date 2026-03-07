@@ -21,8 +21,8 @@ func main() {
 	fmt.Println("╚════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
-	// Create LLM client (auto-detects backend from env vars)
-	client, err := llmfactory.NewClientAuto("")
+	// Resolve LLM backend config (auto-detects from env vars)
+	cfg, err := llmfactory.ResolveBackendAuto("")
 	if err != nil {
 		fmt.Print("Enter your API key: ")
 		reader := bufio.NewReader(os.Stdin)
@@ -31,9 +31,9 @@ func main() {
 		if apiKey == "" {
 			log.Fatal("API key is required. Set ANTHROPIC_API_KEY, LLMPROXY_KEY, OPENAI_API_KEY, or LLM_API_KEY.")
 		}
-		client, err = llmfactory.NewClientAuto(apiKey)
+		cfg, err = llmfactory.ResolveBackendAuto(apiKey)
 		if err != nil {
-			log.Fatalf("Failed to create LLM client: %v", err)
+			log.Fatalf("Failed to resolve LLM backend: %v", err)
 		}
 	}
 
@@ -59,8 +59,8 @@ func main() {
 	printTeamComposition(config)
 	fmt.Println()
 
-	// Create orchestrator with selected configuration
-	orch := orchestrator.NewConfigurableOrchestrator(client, config)
+	// Create orchestrator with BackendConfig for per-agent model selection
+	orch := orchestrator.NewConfigurableOrchestrator(cfg, config)
 
 	// Set up progress callback
 	orch.OnProgress = func(message string) {

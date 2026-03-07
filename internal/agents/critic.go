@@ -62,7 +62,7 @@ Task: %s
 Challenge assumptions and identify potential weaknesses. Ask tough questions that need answers.`,
 		discussionContext, input)
 
-	response, err := a.Query(query)
+	response, err := a.QueryStream(query)
 	if err != nil {
 		return nil, fmt.Errorf("critic query failed: %w", err)
 	}
