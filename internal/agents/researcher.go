@@ -39,29 +39,33 @@ When responding:
 
 Focus on bringing factual grounding and real-world context to theoretical ideas.`
 
-	a := &ResearcherAgent{
+	return &ResearcherAgent{
 		BaseAgent: &BaseAgent{
 			Role:         "researcher",
 			Name:         "Research Specialist",
 			SystemPrompt: systemPrompt,
 			Client:       client,
-			Temperature:  0.4, // Lower for factual accuracy
+			Temperature:  0.4,
 		},
 	}
-
-	// Register web search tool — executor uses the agent's Notify for status messages
-	a.RegisterTool(tools.WebSearchTool(), tools.WebSearchExecutor(func(msg string) {
-		if a.Notify != nil {
-			a.Notify(fmt.Sprintf("  📣 [researcher] %s", msg))
-		}
-	}))
-
-	return a
 }
 
 // Process handles research tasks
 func (a *ResearcherAgent) Process(context *models.Discussion, input string) (*models.AgentResponse, error) {
 	discussionContext := BuildContext(context)
+
+	// Capture structured search results for evidence cards
+	var capturedResults []tools.SearchResult
+	a.RegisterTool(tools.WebSearchTool(), tools.WebSearchExecutor(
+		func(msg string) {
+			if a.Notify != nil {
+				a.Notify(fmt.Sprintf("  📣 [researcher] %s", msg))
+			}
+		},
+		func(results []tools.SearchResult) {
+			capturedResults = append(capturedResults, results...)
+		},
+	))
 
 	query := fmt.Sprintf(`%s
 
@@ -75,9 +79,16 @@ Use the web_search tool to find current data and real-world examples. Then synth
 		return nil, fmt.Errorf("researcher query failed: %w", err)
 	}
 
+	// Convert to []interface{} for AgentResponse (avoids import cycle in models)
+	var srIface []interface{}
+	for _, r := range capturedResults {
+		srIface = append(srIface, r)
+	}
+
 	return &models.AgentResponse{
-		AgentRole: a.Role,
-		Content:   response,
+		AgentRole:     a.Role,
+		Content:       response,
+		SearchResults: srIface,
 	}, nil
 }
 

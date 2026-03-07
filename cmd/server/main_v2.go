@@ -27,6 +27,8 @@ type sessionState struct {
 	// SSE fan-out: registered client channels
 	sseMu      sync.Mutex
 	sseClients []chan string
+
+	EvidenceCards map[string][]interface{} // role → []tools.SearchResult
 }
 
 // notifySSE sends a JSON-encoded event to all SSE subscribers (non-blocking).
@@ -636,6 +638,130 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             .sidebar { border-left: none; border-top: 1px solid var(--border); max-height: 300px; }
             .team-options { grid-template-columns: 1fr; }
         }
+
+        /* ── Timeline Swimlane ─────────────────────────────────── */
+        .timeline-panel {
+            margin: 0 20px 20px;
+            background: var(--bg-desk);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .timeline-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        .timeline-title { font-weight: 600; color: var(--text-bright); }
+        .timeline-elapsed { font-variant-numeric: tabular-nums; }
+        .timeline-lanes {
+            padding: 10px 16px;
+            overflow-x: auto;
+            min-height: 40px;
+        }
+        .tl-lane {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 6px;
+            min-height: 28px;
+        }
+        .tl-lane-label {
+            width: 110px;
+            flex-shrink: 0;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            text-align: right;
+            padding-right: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .tl-axis {
+            flex: 1;
+            position: relative;
+            height: 28px;
+            border-left: 1px solid rgba(255,255,255,0.1);
+        }
+        .tl-event {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 18px;
+            min-width: 8px;
+            border-radius: 9px;
+            padding: 0 6px;
+            font-size: 0.6rem;
+            line-height: 18px;
+            white-space: nowrap;
+            cursor: default;
+            opacity: 0.9;
+            transition: opacity 0.15s, transform 0.15s;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 140px;
+            color: #000;
+            font-weight: 600;
+        }
+        .tl-event:hover {
+            opacity: 1;
+            transform: translateY(-50%) scale(1.05);
+            z-index: 10;
+            max-width: 300px;
+        }
+
+        /* ── Evidence Cards ─────────────────────────────────────── */
+        .evidence-section {
+            margin-top: 8px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            padding-top: 6px;
+        }
+        .evidence-toggle {
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            cursor: pointer;
+            user-select: none;
+            padding: 2px 0;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .evidence-toggle:hover { color: var(--text-bright); }
+        .evidence-cards { display: none; margin-top: 6px; }
+        .evidence-cards.open { display: block; }
+        .evidence-card {
+            background: rgba(0,212,255,0.07);
+            border: 1px solid rgba(0,212,255,0.2);
+            border-radius: 6px;
+            padding: 6px 8px;
+            margin-bottom: 5px;
+            font-size: 0.67rem;
+            line-height: 1.5;
+        }
+        .evidence-card a {
+            color: #00d4ff;
+            text-decoration: none;
+            font-weight: 600;
+            display: block;
+            margin-bottom: 2px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .evidence-card a:hover { text-decoration: underline; }
+        .evidence-card .ev-desc { color: var(--text-dim); }
+        .evidence-card .ev-query {
+            margin-top: 3px;
+            font-style: italic;
+            color: rgba(255,255,255,0.3);
+            font-size: 0.6rem;
+        }
     </style>
 </head>
 <body>
@@ -783,6 +909,13 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                 <div class="activity-feed" id="activityFeed"></div>
             </div>
         </div>
+        <div class="timeline-panel" id="timelinePanel">
+            <div class="timeline-header">
+                <span class="timeline-title">⏱ Agent Timeline</span>
+                <span class="timeline-elapsed" id="timelineElapsed"></span>
+            </div>
+            <div class="timeline-lanes" id="timelineLanes"></div>
+        </div>
     </div>
 
     <!-- ── Result Overlay ── -->
@@ -805,6 +938,16 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         let selectedTeam = 'standard';
         let seenLogCount = 0;
         let agentRoles = [];
+
+        const agentPersonas = {
+            "team_leader": {name: "Commander Bleep", icon: "🤖", color: "#FF6B6B"},
+            "ideation":    {name: "Sparx",           icon: "💡", color: "#51E898"},
+            "moderator":   {name: "Balancebot",       icon: "🔮", color: "#7B68EE"},
+            "researcher":  {name: "Digger-3000",      icon: "🔍", color: "#00D4FF"},
+            "critic":      {name: "Glitchy",          icon: "👾", color: "#FFD93D"},
+            "implementer": {name: "Bolt",             icon: "🔧", color: "#FF8C42"},
+            "ui_creator":  {name: "Doodlebot",        icon: "🎨", color: "#FF6BC1"},
+        };
 
         const TEAM_AGENTS = {
             standard: ['team_leader','ideation','moderator','ui_creator'],
@@ -956,6 +1099,106 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 
         let eventSource = null;
 
+        // ── Evidence Cards ──────────────────────────────────────────
+        function handleEvidenceUpdate(role, results) {
+            const desk = document.getElementById('desk-' + role);
+            if (!desk) return;
+            let section = desk.querySelector('.evidence-section');
+            if (!section) {
+                section = document.createElement('div');
+                section.className = 'evidence-section';
+                section.innerHTML = '<div class="evidence-toggle" onclick="this.nextElementSibling.classList.toggle(\'open\')">🔍 <span>Research Sources (' + results.length + ')</span> ▾</div><div class="evidence-cards"></div>';
+                desk.appendChild(section);
+            }
+            const toggle = section.querySelector('.evidence-toggle span');
+            const cards = section.querySelector('.evidence-cards');
+            cards.innerHTML = '';
+            results.forEach(function(r) {
+                const card = document.createElement('div');
+                card.className = 'evidence-card';
+                const title = r.title || r.url || 'Source';
+                const desc = r.description ? r.description.slice(0, 140) : '';
+                card.innerHTML = '<a href="' + (r.url || '#') + '" target="_blank" rel="noopener">' + escapeHtml(title) + '</a>' +
+                    (desc ? '<div class="ev-desc">' + escapeHtml(desc) + '</div>' : '') +
+                    (r.query ? '<div class="ev-query">Query: ' + escapeHtml(r.query) + '</div>' : '');
+                cards.appendChild(card);
+            });
+            if (toggle) toggle.textContent = 'Research Sources (' + results.length + ')';
+            cards.classList.add('open');
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        // ── Timeline Swimlane ────────────────────────────────────────
+        var tlStartTime = null;
+
+        function renderSwimLane(messages, agents, startTime) {
+            const lanesEl = document.getElementById('timelineLanes');
+            const elapsedEl = document.getElementById('timelineElapsed');
+            if (!lanesEl || !messages || messages.length === 0) return;
+
+            const now = new Date();
+            const start = startTime ? new Date(startTime) : (tlStartTime || now);
+            if (!tlStartTime && startTime) tlStartTime = new Date(startTime);
+
+            const totalMs = Math.max(now - (tlStartTime || start), 1000);
+            elapsedEl && (elapsedEl.textContent = formatElapsed(totalMs));
+
+            // Group messages by sender
+            const roles = Object.keys(agents || {});
+            if (roles.length === 0) return;
+
+            const lanes = {};
+            roles.forEach(function(r) { lanes[r] = []; });
+            messages.forEach(function(m) {
+                if (lanes[m.from] !== undefined) lanes[m.from].push(m);
+            });
+
+            lanesEl.innerHTML = '';
+            roles.forEach(function(role) {
+                const persona = agentPersonas[role];
+                if (!persona) return;
+                const events = lanes[role] || [];
+
+                const lane = document.createElement('div');
+                lane.className = 'tl-lane';
+
+                const label = document.createElement('div');
+                label.className = 'tl-lane-label';
+                label.textContent = (persona.icon || '') + ' ' + (persona.name || role);
+                lane.appendChild(label);
+
+                const axis = document.createElement('div');
+                axis.className = 'tl-axis';
+
+                events.forEach(function(ev) {
+                    const evTime = new Date(ev.timestamp);
+                    const offsetMs = evTime - (tlStartTime || start);
+                    const pct = Math.min(Math.max((offsetMs / totalMs) * 100, 0), 97);
+
+                    const pill = document.createElement('div');
+                    pill.className = 'tl-event';
+                    pill.style.left = pct + '%';
+                    pill.style.background = persona.color || '#888';
+                    pill.title = ev.preview || ev.type;
+                    pill.textContent = ev.preview ? ev.preview.slice(0, 30) : ev.type;
+                    axis.appendChild(pill);
+                });
+
+                lane.appendChild(axis);
+                lanesEl.appendChild(lane);
+            });
+        }
+
+        function formatElapsed(ms) {
+            var s = Math.floor(ms / 1000);
+            var m = Math.floor(s / 60);
+            s = s % 60;
+            return m + ':' + (s < 10 ? '0' : '') + s;
+        }
+
         function connectSSE(id) {
             if (eventSource) eventSource.close();
             eventSource = new EventSource('/api/stream/' + id);
@@ -999,6 +1242,8 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                         bubble.textContent += d.chunk;
                     }
                 }
+            } else if (data.type === 'evidence') {
+                handleEvidenceUpdate(data.data.role, data.data.results);
             }
             // Check status/completion via periodic poll (keeps it simple)
             if (!pollTimer) {
@@ -1047,6 +1292,13 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                     }
                     seenLogCount = data.log.length;
                     feed.scrollTop = feed.scrollHeight;
+                }
+
+                renderSwimLane(data.messages, data.agents, data.start_time);
+                if (data.evidence) {
+                    Object.keys(data.evidence).forEach(function(role) {
+                        handleEvidenceUpdate(role, data.evidence[role]);
+                    });
                 }
 
                 // Check completion
@@ -1244,6 +1496,18 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 		mu.Unlock()
 	}
 
+	// Wire up evidence callback to capture researcher search results
+	orch.OnEvidence = func(role string, results []interface{}) {
+		mu.Lock()
+		if ss.EvidenceCards == nil {
+			ss.EvidenceCards = make(map[string][]interface{})
+		}
+		ss.EvidenceCards[role] = append(ss.EvidenceCards[role], results...)
+		mu.Unlock()
+		// Notify SSE clients so the UI can update evidence cards immediately
+		ss.notifySSE("evidence", map[string]interface{}{"role": role, "results": results})
+	}
+
 	// Pre-generate a discussion ID and register session immediately
 	// so SSE clients can connect before the discussion fully initializes.
 	sessionID := uuid.New().String()
@@ -1305,6 +1569,22 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		finalIdea = ss.Discussion.FinalIdea.Title
 	}
 
+	// Build slim message list for swimlane (from, type, timestamp, content preview)
+	type msgInfo struct {
+		From      string    `json:"from"`
+		Type      string    `json:"type"`
+		Timestamp time.Time `json:"timestamp"`
+		Preview   string    `json:"preview"`
+	}
+	msgs := make([]msgInfo, 0, len(ss.Discussion.Messages))
+	for _, m := range ss.Discussion.Messages {
+		preview := m.Content
+		if len(preview) > 120 {
+			preview = preview[:120] + "…"
+		}
+		msgs = append(msgs, msgInfo{From: m.From, Type: m.Type, Timestamp: m.Timestamp, Preview: preview})
+	}
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":     ss.Discussion.Status,
 		"phase":      ss.Phase,
@@ -1314,6 +1594,9 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		"final_idea": finalIdea,
 		"round":      ss.Discussion.Round,
 		"log":        ss.Log,
+		"messages":   msgs,
+		"evidence":   ss.EvidenceCards,
+		"start_time": ss.Discussion.StartTime,
 	})
 }
 

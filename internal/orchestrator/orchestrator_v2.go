@@ -23,6 +23,9 @@ type ConfigurableOrchestrator struct {
 	OnProgress    func(message string)
 	// OnChunk is called for each streaming token: role + chunk text.
 	OnChunk func(role string, chunk string)
+	// OnEvidence is called when the researcher returns structured search results.
+	// role is the agent role string, results is []tools.SearchResult as []interface{}.
+	OnEvidence func(role string, results []interface{})
 }
 
 // NewConfigurableOrchestrator creates a new orchestrator with custom team config.
@@ -300,6 +303,11 @@ func (o *ConfigurableOrchestrator) runAgentContribution(role models.AgentRole, p
 	if err != nil {
 		log.Printf("Warning: %s contribution failed: %v", agent.GetName(), err)
 		return nil // Don't fail the whole discussion
+	}
+
+	// Fire evidence callback if the agent returned structured search results
+	if len(response.SearchResults) > 0 && o.OnEvidence != nil {
+		o.OnEvidence(string(role), response.SearchResults)
 	}
 
 	// Add ideas if any were generated
