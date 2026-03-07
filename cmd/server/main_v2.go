@@ -418,6 +418,14 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         }
         .field textarea { resize: vertical; min-height: 80px; }
         .field small { color: var(--text-dim); font-size: 0.75rem; display: block; margin-top: 4px; }
+        .input-reveal { position: relative; }
+        .input-reveal input { padding-right: 42px; }
+        .input-reveal button {
+            position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; cursor: pointer; color: var(--text-dim);
+            padding: 4px; line-height: 1; font-size: 1rem; transition: color 0.15s;
+        }
+        .input-reveal button:hover { color: var(--accent); }
 
         .team-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
         .team-opt {
@@ -815,13 +823,19 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 
         <div class="field">
             <label>Your LLM Token <span style="color:#ef4444">*</span></label>
-            <input type="password" id="apiKey" placeholder="user=yourname&amp;key=sk_..." required>
+            <div class="input-reveal">
+                <input type="password" id="apiKey" placeholder="user=yourname&amp;key=sk_..." required>
+                <button type="button" onclick="toggleReveal('apiKey', this)" title="Show/hide token" aria-label="Toggle token visibility">👁</button>
+            </div>
             <small>Your personal LLM proxy key (format: user=name&amp;key=sk_...) or OpenAI API key. Each user must provide their own token.</small>
         </div>
 
         <div class="field">
             <label>Firecrawl API Key <span style="color:#6b7280;font-weight:400;font-size:0.8em;">(optional)</span></label>
-            <input type="password" id="firecrawlKey" placeholder="fc-...">
+            <div class="input-reveal">
+                <input type="password" id="firecrawlKey" placeholder="fc-...">
+                <button type="button" onclick="toggleReveal('firecrawlKey', this)" title="Show/hide key" aria-label="Toggle key visibility">👁</button>
+            </div>
             <small>Enables live web search for the Researcher agent. Get a free key at <a href="https://firecrawl.dev" target="_blank" rel="noopener" style="color:#a5b4fc;">firecrawl.dev</a>. Without it, the researcher uses LLM knowledge only.</small>
         </div>
 
@@ -1003,6 +1017,13 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 
         let customIdeationCount = 1;
         let customRounds = 2;
+
+        function toggleReveal(id, btn) {
+            const input = document.getElementById(id);
+            const showing = input.type === 'text';
+            input.type = showing ? 'password' : 'text';
+            btn.textContent = showing ? '👁' : '🙈';
+        }
 
         function selectTeam(el, team) {
             selectedTeam = team;
