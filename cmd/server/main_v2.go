@@ -1185,13 +1185,21 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             roles.forEach(function(role) {
                 const results = allEvidence[role];
                 if (!results || results.length === 0) return;
+                // Deduplicate by query+url so multi-round runs don't show repeats
+                const seen = new Set();
+                const unique = results.filter(function(r) {
+                    const key = (r.url || '') + '|' + (r.query || '') + '|' + (r.title || '');
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
                 const group = document.createElement('div');
                 group.className = 'drawer-group';
-                const persona = agentPersonas[role] || { name: role, emoji: '🤖' };
-                const liveCount = results.filter(r => r.url).length;
-                const label = liveCount > 0 ? liveCount + ' sources' : results.length + ' queries';
-                group.innerHTML = '<div class="drawer-group-title">' + persona.emoji + ' ' + persona.name + ' — ' + label + '</div>';
-                results.forEach(function(r) { group.appendChild(buildEvidenceCard(r)); });
+                const persona = agentPersonas[role] || { name: role, icon: '🤖' };
+                const liveCount = unique.filter(r => r.url).length;
+                const label = liveCount > 0 ? liveCount + ' sources' : unique.length + ' queries';
+                group.innerHTML = '<div class="drawer-group-title">' + (persona.icon || '🔍') + ' ' + (persona.name || role) + ' — ' + label + '</div>';
+                unique.forEach(function(r) { group.appendChild(buildEvidenceCard(r)); });
                 body.appendChild(group);
             });
         }
@@ -1199,18 +1207,23 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         function updateEvidenceBadge(role, results) {
             const desk = document.getElementById('desk-' + role);
             if (!desk) return;
-            const liveCount = results.filter(r => r.url).length;
-            const total = results.length;
+            // Deduplicate for badge count
+            const seen = new Set();
+            const unique = results.filter(function(r) {
+                const key = (r.url || '') + '|' + (r.query || '') + '|' + (r.title || '');
+                if (seen.has(key)) return false;
+                seen.add(key); return true;
+            });
+            const liveCount = unique.filter(r => r.url).length;
             const isPlaceholder = liveCount === 0;
             let badge = desk.querySelector('.ev-badge');
             if (!badge) {
                 badge = document.createElement('div');
-                badge.className = 'ev-badge' + (isPlaceholder ? ' ev-placeholder-badge' : '');
                 badge.onclick = openEvidenceDrawer;
                 desk.appendChild(badge);
             }
             badge.className = 'ev-badge' + (isPlaceholder ? ' ev-placeholder-badge' : '');
-            badge.innerHTML = '🔍 ' + (isPlaceholder ? total + ' queries' : liveCount + ' sources');
+            badge.innerHTML = '🔍 ' + (isPlaceholder ? unique.length + ' queries' : liveCount + ' sources');
         }
 
         function handleEvidenceUpdate(role, results) {
