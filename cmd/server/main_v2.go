@@ -1164,16 +1164,19 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 
         function buildEvidenceCard(r) {
             const card = document.createElement('div');
-            const isPlaceholder = !r.url && (r.title || '').startsWith('Internal Knowledge');
+            const isPlaceholder = !r.url;
             card.className = 'evidence-card' + (isPlaceholder ? ' ev-placeholder' : '');
             const title = r.title || r.url || 'Source';
             const desc = r.description ? r.description.slice(0, 160) : '';
             const titleHtml = r.url
                 ? '<a href="' + r.url + '" target="_blank" rel="noopener">' + escapeHtml(title) + '</a>'
                 : '<span class="ev-notitle">' + escapeHtml(title) + '</span>';
+            // Only show the query tag for real web search results, not placeholders
+            const queryHtml = (!isPlaceholder && r.query)
+                ? '<div class="ev-query">🔍 ' + escapeHtml(r.query) + '</div>' : '';
             card.innerHTML = titleHtml +
                 (desc ? '<div class="ev-desc">' + escapeHtml(desc) + '</div>' : '') +
-                (r.query ? '<div class="ev-query">🔍 ' + escapeHtml(r.query) + '</div>' : '');
+                queryHtml;
             return card;
         }
 

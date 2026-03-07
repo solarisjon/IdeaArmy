@@ -324,9 +324,8 @@ func (o *ConfigurableOrchestrator) runAgentContribution(role models.AgentRole, p
 		if len(results) == 0 {
 			// Synthetic placeholder so the evidence badge always appears
 			results = []interface{}{map[string]interface{}{
-				"title":       "Internal Knowledge (no web search performed)",
-				"description": "The researcher answered from training data. Set FIRECRAWL_API_KEY or provide one in the setup form to enable live web search.",
-				"query":       prompt,
+				"title":       "Research from training data",
+				"description": "The researcher used LLM knowledge for this topic. Add a Firecrawl API key in the setup form to enable live web search.",
 			}}
 		}
 		o.OnEvidence(string(role), results)
