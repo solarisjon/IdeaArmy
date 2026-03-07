@@ -21,6 +21,9 @@ type Client struct {
 	BaseURL string // e.g. "https://llm-proxy-api.ai.eng.netapp.com/v1"
 	User    string // optional "user" field sent in request body (required by some proxies)
 	client  *http.Client
+	// noTemperature is set to true after the model rejects a temperature parameter,
+	// so all subsequent requests skip it without needing a retry round-trip.
+	noTemperature bool
 }
 
 // NewClient creates a new OpenAI-compatible client.
@@ -218,6 +221,9 @@ func (c *Client) doRequest(req chatRequest) (string, error) {
 
 // doRequestFull performs a blocking API call and returns content, tool calls, and finish reason.
 func (c *Client) doRequestFull(req chatRequest) (content string, toolCalls []apiToolCall, finishReason string, err error) {
+	if c.noTemperature {
+		req.Temperature = nil
+	}
 	body, statusCode, err := c.httpPost(req)
 	if err != nil {
 		return "", nil, "", err
@@ -225,9 +231,11 @@ func (c *Client) doRequestFull(req chatRequest) (content string, toolCalls []api
 
 	if statusCode != http.StatusOK {
 		bodyStr := string(body)
-		// Retry without temperature for models that only support the default value
+		// Retry without temperature for models that only support the default value.
+		// Remember this so future calls skip temperature immediately.
 		if statusCode == 400 && req.Temperature != nil && strings.Contains(bodyStr, "temperature") {
-			log.Printf("Model %s rejected temperature, retrying with default", c.Model)
+			log.Printf("Model %s rejected temperature; all future requests will omit it", c.Model)
+			c.noTemperature = true
 			req.Temperature = nil
 			body, statusCode, err = c.httpPost(req)
 			if err != nil {
@@ -256,6 +264,9 @@ func (c *Client) doRequestFull(req chatRequest) (content string, toolCalls []api
 // doStream performs a streaming API call, calling onChunk for each token.
 // Returns the full accumulated response text.
 func (c *Client) doStream(req chatRequest, onChunk func(string)) (string, error) {
+	if c.noTemperature {
+		req.Temperature = nil
+	}
 	jsonData, err := json.Marshal(req)
 	if err != nil {
 		return "", fmt.Errorf("marshal error: %w", err)
@@ -279,9 +290,10 @@ func (c *Client) doStream(req chatRequest, onChunk func(string)) (string, error)
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		bodyStr := string(body)
-		// Retry without temperature
+		// Retry without temperature; remember for all future calls.
 		if resp.StatusCode == 400 && req.Temperature != nil && strings.Contains(bodyStr, "temperature") {
-			log.Printf("Model %s rejected temperature in stream, retrying", c.Model)
+			log.Printf("Model %s rejected temperature in stream; all future requests will omit it", c.Model)
+			c.noTemperature = true
 			req.Temperature = nil
 			return c.doStream(req, onChunk)
 		}
