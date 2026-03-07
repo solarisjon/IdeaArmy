@@ -91,5 +91,3 @@ Use the web_search tool to find current data and real-world examples. Then synth
 		SearchResults: srIface,
 	}, nil
 }
-
-// ResearcherAgent conducts deep research and analysis

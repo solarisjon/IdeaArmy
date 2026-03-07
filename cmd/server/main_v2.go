@@ -761,6 +761,9 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         }
         .evidence-card a:hover { text-decoration: underline; }
         .evidence-card .ev-desc { color: var(--text-dim); }
+        .evidence-card .ev-notitle { color: var(--text-dim); font-style: italic; }
+        .evidence-card.ev-placeholder { border-color: rgba(255,200,100,0.2); background: rgba(255,200,100,0.04); }
+        .evidence-card.ev-placeholder .ev-notitle { color: rgba(255,200,100,0.6); }
         .evidence-card .ev-query {
             margin-top: 3px;
             font-style: italic;
@@ -1120,15 +1123,22 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             cards.innerHTML = '';
             results.forEach(function(r) {
                 const card = document.createElement('div');
-                card.className = 'evidence-card';
+                const isPlaceholder = !r.url && r.title === 'Internal Knowledge (no web search)';
+                card.className = 'evidence-card' + (isPlaceholder ? ' ev-placeholder' : '');
                 const title = r.title || r.url || 'Source';
-                const desc = r.description ? r.description.slice(0, 140) : '';
-                card.innerHTML = '<a href="' + (r.url || '#') + '" target="_blank" rel="noopener">' + escapeHtml(title) + '</a>' +
+                const desc = r.description ? r.description.slice(0, 160) : '';
+                const titleHtml = r.url
+                    ? '<a href="' + r.url + '" target="_blank" rel="noopener">' + escapeHtml(title) + '</a>'
+                    : '<span class="ev-notitle">' + escapeHtml(title) + '</span>';
+                card.innerHTML = titleHtml +
                     (desc ? '<div class="ev-desc">' + escapeHtml(desc) + '</div>' : '') +
-                    (r.query ? '<div class="ev-query">Query: ' + escapeHtml(r.query) + '</div>' : '');
+                    (r.query ? '<div class="ev-query">🔍 ' + escapeHtml(r.query) + '</div>' : '');
                 cards.appendChild(card);
             });
-            if (toggle) toggle.textContent = 'Research Sources (' + results.length + ')';
+            const liveCount = results.filter(r => r.url).length;
+            if (toggle) toggle.textContent = liveCount > 0
+                ? 'Research Sources (' + liveCount + ')'
+                : 'Research Queries (' + results.length + ')';
             cards.classList.add('open');
         }
 

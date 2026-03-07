@@ -80,6 +80,15 @@ func WebSearchExecutor(notify func(string), onResults func([]SearchResult)) func
 
 		apiKey := os.Getenv("FIRECRAWL_API_KEY")
 		if apiKey == "" {
+			// Surface the query as a placeholder evidence card so the UI still shows
+			// what was researched even without live web search.
+			if onResults != nil {
+				onResults([]SearchResult{{
+					Query:       args.Query,
+					Title:       "Internal Knowledge (no web search)",
+					Description: "Set FIRECRAWL_API_KEY to enable live web search. Researcher is using LLM training data instead.",
+				}})
+			}
 			return fmt.Sprintf("[Web search unavailable: FIRECRAWL_API_KEY not set. Query was: %q — using internal knowledge instead.]", args.Query), nil
 		}
 
