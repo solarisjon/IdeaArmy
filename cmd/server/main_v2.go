@@ -1613,11 +1613,19 @@ func handleResult(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var html string
+	var conceptMap string
 	for _, msg := range ss.Discussion.Messages {
-		if msg.Type == "visualization" {
+		switch msg.Type {
+		case "visualization":
 			html = msg.Content
-			break
+		case "concept_map":
+			conceptMap = msg.Content
 		}
+	}
+	// If the concept map was injected into the idea sheet it's already in html.
+	// conceptMap is only set when visualization wasn't available.
+	if html == "" && conceptMap != "" {
+		html = conceptMap
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{

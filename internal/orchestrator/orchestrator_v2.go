@@ -12,6 +12,7 @@ import (
 	"github.com/yourusername/ai-agent-team/internal/llm"
 	"github.com/yourusername/ai-agent-team/internal/llmfactory"
 	"github.com/yourusername/ai-agent-team/internal/models"
+	"github.com/yourusername/ai-agent-team/internal/report"
 )
 
 // ConfigurableOrchestrator coordinates a configurable team of agents
@@ -196,6 +197,9 @@ func (o *ConfigurableOrchestrator) StartDiscussion(topic string) error {
 	if err := o.runVisualization(); err != nil {
 		return fmt.Errorf("visualization failed: %w", err)
 	}
+
+	// Phase 5: Concept map — inject into the idea sheet (non-fatal)
+	o.appendConceptMap()
 
 	o.Discussion.EndTime = time.Now()
 	o.Discussion.Status = "completed"
@@ -663,4 +667,33 @@ func (o *ConfigurableOrchestrator) GetIdeaSheetHTML() string {
 	}
 
 	return ""
+}
+
+// appendConceptMap builds an interactive D3.js concept map from the completed
+// Discussion and injects it into the "visualization" message HTML.
+// This is non-fatal: any error is logged and the idea sheet is left unchanged.
+func (o *ConfigurableOrchestrator) appendConceptMap() {
+	o.notify("  🗺️  Generating concept map...")
+
+	data := report.BuildConceptMap(o.Discussion)
+	if len(data.Nodes) == 0 {
+		return
+	}
+
+	mapHTML := report.RenderConceptMapHTML(data)
+
+	// Find the visualization message and inject the concept map before </body>
+	for i := range o.Discussion.Messages {
+		if o.Discussion.Messages[i].Type == "visualization" {
+			o.Discussion.Messages[i].Content = report.InjectIntoHTML(
+				o.Discussion.Messages[i].Content, mapHTML,
+			)
+			o.notify("  ✅ Concept map injected into idea sheet")
+			return
+		}
+	}
+
+	// No visualization message yet — store the map on its own
+	o.addMessage(string(models.RoleUICreator), "team", mapHTML, "concept_map")
+	o.notify("  ✅ Concept map saved as standalone section")
 }
