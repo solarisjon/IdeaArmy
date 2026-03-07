@@ -25,6 +25,9 @@ type BaseAgent struct {
 	Temperature  float64
 	Model        string // LLM model identifier used by this agent
 
+	// FirecrawlKey is the Firecrawl API key for web search. If empty, falls back to FIRECRAWL_API_KEY env var.
+	FirecrawlKey string
+
 	// OnChunk is called for each streaming token. Set by the orchestrator.
 	OnChunk func(string)
 

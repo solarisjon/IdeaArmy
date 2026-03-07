@@ -27,6 +27,10 @@ type ConfigurableOrchestrator struct {
 	// OnEvidence is called when the researcher returns structured search results.
 	// role is the agent role string, results is []tools.SearchResult as []interface{}.
 	OnEvidence func(role string, results []interface{})
+
+	// FirecrawlKey is the Firecrawl API key for the researcher agent's web search.
+	// If empty, falls back to the FIRECRAWL_API_KEY environment variable.
+	FirecrawlKey string
 }
 
 // NewConfigurableOrchestrator creates a new orchestrator with custom team config.
@@ -297,6 +301,10 @@ func (o *ConfigurableOrchestrator) runAgentContribution(role models.AgentRole, p
 			ba.OnChunk = func(chunk string) { o.OnChunk(roleStr, chunk) }
 		}
 		ba.Notify = func(msg string) { o.notify(msg) }
+		// Propagate Firecrawl key so the researcher uses the per-request key.
+		if o.FirecrawlKey != "" {
+			ba.FirecrawlKey = o.FirecrawlKey
+		}
 		defer func() {
 			ba.OnChunk = nil
 			ba.Notify = nil

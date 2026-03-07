@@ -55,11 +55,12 @@ type SearchResult struct {
 }
 
 // WebSearchExecutor returns a tool executor function for web_search.
-// If FIRECRAWL_API_KEY is not set, it returns a graceful fallback message.
+// apiKey is the Firecrawl API key; if empty, falls back to the FIRECRAWL_API_KEY env var.
+// If neither is set, it returns a graceful fallback message.
 // notify is called with a human-readable status line before each search.
 // onResults is called with structured results after each successful search;
 // it may be nil if the caller only needs the formatted text.
-func WebSearchExecutor(notify func(string), onResults func([]SearchResult)) func(arguments string) (string, error) {
+func WebSearchExecutor(apiKey string, notify func(string), onResults func([]SearchResult)) func(arguments string) (string, error) {
 	httpClient := &http.Client{Timeout: 30 * time.Second}
 
 	return func(arguments string) (string, error) {
@@ -78,8 +79,11 @@ func WebSearchExecutor(notify func(string), onResults func([]SearchResult)) func
 			notify(fmt.Sprintf("🔍 Searching web: %s", args.Query))
 		}
 
-		apiKey := os.Getenv("FIRECRAWL_API_KEY")
-		if apiKey == "" {
+		key := apiKey
+		if key == "" {
+			key = os.Getenv("FIRECRAWL_API_KEY")
+		}
+		if key == "" {
 			// Surface the query as a placeholder evidence card so the UI still shows
 			// what was researched even without live web search.
 			if onResults != nil {
@@ -92,7 +96,7 @@ func WebSearchExecutor(notify func(string), onResults func([]SearchResult)) func
 			return fmt.Sprintf("[Web search unavailable: FIRECRAWL_API_KEY not set. Query was: %q — using internal knowledge instead.]", args.Query), nil
 		}
 
-		text, results, err := searchFirecrawl(httpClient, apiKey, args.Query, args.MaxResults)
+		text, results, err := searchFirecrawl(httpClient, key, args.Query, args.MaxResults)
 		if err != nil {
 			return text, err
 		}

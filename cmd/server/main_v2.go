@@ -788,6 +788,12 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             <small>Your personal LLM proxy key (format: user=name&amp;key=sk_...) or OpenAI API key. Each user must provide their own token.</small>
         </div>
 
+        <div class="field">
+            <label>Firecrawl API Key <span style="color:#6b7280;font-weight:400;font-size:0.8em;">(optional)</span></label>
+            <input type="password" id="firecrawlKey" placeholder="fc-...">
+            <small>Enables live web search for the Researcher agent. Get a free key at <a href="https://firecrawl.dev" target="_blank" rel="noopener" style="color:#a5b4fc;">firecrawl.dev</a>. Without it, the researcher uses LLM knowledge only.</small>
+        </div>
+
         <div style="background:rgba(99,102,241,0.08);border-left:3px solid #6366f1;border-radius:6px;padding:14px 18px;margin-bottom:8px;font-size:0.9rem;line-height:1.6;color:#c4c9e2;">
             <strong style="color:#a5b4fc;">💡 What is this?</strong><br>
             IdeaArmy isn't here to solve your problems — it's here to generate ideas around them. Give it a statement, a challenge, or a topic, and a team of AI agents will brainstorm, debate, and surface creative possibilities you might not have considered. The more context and constraints you provide, the more focused and relevant the ideas will be. Keep it vague or wide open, and the bots will go off-the-wall — which is sometimes exactly what you need.
@@ -1055,21 +1061,25 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             }
         }
 
-        // Restore saved token on page load
+        // Restore saved tokens on page load
         (function() {
             const saved = localStorage.getItem('ideaarmy_token');
             if (saved) document.getElementById('apiKey').value = saved;
+            const savedFc = localStorage.getItem('ideaarmy_firecrawl');
+            if (savedFc) document.getElementById('firecrawlKey').value = savedFc;
         })();
 
         async function launchMission() {
             const apiKey = document.getElementById('apiKey').value.trim();
+            const firecrawlKey = document.getElementById('firecrawlKey').value.trim();
             const topic = document.getElementById('topic').value.trim();
 
             if (!apiKey) { alert('Please provide your LLM token'); return; }
             if (!topic) { alert('Please provide a mission objective'); return; }
 
-            // Remember token in browser for next visit
+            // Remember tokens in browser for next visit
             localStorage.setItem('ideaarmy_token', apiKey);
+            if (firecrawlKey) localStorage.setItem('ideaarmy_firecrawl', firecrawlKey);
 
             document.getElementById('setup').style.display = 'none';
             document.getElementById('warRoom').classList.add('active');
@@ -1077,7 +1087,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             const roles = selectedTeam === 'custom' ? getCustomAgentRoles() : TEAM_AGENTS[selectedTeam] || TEAM_AGENTS.standard;
             buildDesks(roles);
 
-            const body = { api_key: apiKey, topic: topic, team_config: selectedTeam };
+            const body = { api_key: apiKey, firecrawl_key: firecrawlKey, topic: topic, team_config: selectedTeam };
             if (selectedTeam === 'custom') {
                 body.custom = {
                     researcher:    document.getElementById('chkResearcher').checked,
@@ -1404,10 +1414,11 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		APIKey     string `json:"api_key"`
-		Topic      string `json:"topic"`
-		TeamConfig string `json:"team_config"`
-		Custom     struct {
+		APIKey       string `json:"api_key"`
+		FirecrawlKey string `json:"firecrawl_key"`
+		Topic        string `json:"topic"`
+		TeamConfig   string `json:"team_config"`
+		Custom       struct {
 			Researcher    bool `json:"researcher"`
 			Critic        bool `json:"critic"`
 			Implementer   bool `json:"implementer"`
@@ -1478,6 +1489,9 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	orch := orchestrator.NewConfigurableOrchestrator(cfg, config)
+	if req.FirecrawlKey != "" {
+		orch.FirecrawlKey = req.FirecrawlKey
+	}
 
 	// Build agent states for this team
 	agentStates := make(map[string]*webAgentState)

@@ -57,6 +57,7 @@ func (a *ResearcherAgent) Process(context *models.Discussion, input string) (*mo
 	// Capture structured search results for evidence cards
 	var capturedResults []tools.SearchResult
 	a.RegisterTool(tools.WebSearchTool(), tools.WebSearchExecutor(
+		a.FirecrawlKey,
 		func(msg string) {
 			if a.Notify != nil {
 				a.Notify(fmt.Sprintf("  📣 [researcher] %s", msg))
