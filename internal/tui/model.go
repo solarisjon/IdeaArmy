@@ -31,6 +31,7 @@ type AgentState struct {
 	Status    string // "idle", "working", "complete"
 	Message   string
 	Speech    string // Latest contribution text (truncated for bubble)
+	Model     string // LLM model identifier
 	Spinner   spinner.Model
 	StartTime time.Time
 }
@@ -98,6 +99,12 @@ type IdeaGeneratedMsg struct {
 
 // LogMsg is sent to add a log message
 type LogMsg string
+
+// ModelAssignedMsg is sent when models are assigned to agents
+type ModelAssignedMsg struct {
+	Role  string
+	Model string
+}
 
 // CompleteMsg is sent when discussion completes
 type CompleteMsg struct {
@@ -217,6 +224,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Messages = m.Messages[1:]
 		}
 		m.TotalMessages++
+		return m, nil
+
+	case ModelAssignedMsg:
+		if agent, ok := m.Agents[msg.Role]; ok {
+			agent.Model = msg.Model
+		}
 		return m, nil
 
 	case CompleteMsg:
@@ -390,7 +403,17 @@ func (m Model) renderAgentCard(agent *AgentState, width int) string {
 		BorderForeground(persona.Color).
 		Render(speechContent)
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, bubble)
+	// Model label at the bottom of the card
+	modelText := agent.Model
+	if modelText == "" {
+		modelText = "pending..."
+	}
+	modelLabel := lipgloss.NewStyle().
+		Foreground(robotGray).
+		Italic(true).
+		Render(fmt.Sprintf("⚙ %s", modelText))
+
+	return lipgloss.JoinVertical(lipgloss.Left, header, bubble, modelLabel)
 }
 
 // renderAgents kept as alias for backward compat

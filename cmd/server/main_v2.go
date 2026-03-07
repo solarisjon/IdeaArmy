@@ -993,11 +993,11 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 		Topic      string `json:"topic"`
 		TeamConfig string `json:"team_config"`
 		Custom     struct {
-			Researcher   bool `json:"researcher"`
-			Critic       bool `json:"critic"`
-			Implementer  bool `json:"implementer"`
-			IdeationCount int `json:"ideation_count"`
-			MaxRounds    int  `json:"max_rounds"`
+			Researcher    bool `json:"researcher"`
+			Critic        bool `json:"critic"`
+			Implementer   bool `json:"implementer"`
+			IdeationCount int  `json:"ideation_count"`
+			MaxRounds     int  `json:"max_rounds"`
 		} `json:"custom"`
 	}
 
@@ -1056,13 +1056,13 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 		config = models.StandardTeamConfig()
 	}
 
-	client, err := llmfactory.NewClientAuto(req.APIKey)
+	cfg, err := llmfactory.ResolveBackendAuto(req.APIKey)
 	if err != nil {
-		respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Failed to create LLM client: %v", err)})
+		respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Failed to resolve LLM backend: %v", err)})
 		return
 	}
 
-	orch := orchestrator.NewConfigurableOrchestrator(client, config)
+	orch := orchestrator.NewConfigurableOrchestrator(cfg, config)
 
 	// Build agent states for this team
 	agentStates := make(map[string]*webAgentState)

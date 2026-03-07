@@ -10,6 +10,7 @@ import (
 type Agent interface {
 	GetRole() models.AgentRole
 	GetName() string
+	GetModel() string
 	Process(context *models.Discussion, input string) (*models.AgentResponse, error)
 	GetSystemPrompt() string
 }
@@ -21,6 +22,7 @@ type BaseAgent struct {
 	SystemPrompt string
 	Client       llm.Client
 	Temperature  float64
+	Model        string // LLM model identifier used by this agent
 }
 
 // GetRole returns the agent's role
@@ -36,6 +38,11 @@ func (a *BaseAgent) GetName() string {
 // GetSystemPrompt returns the agent's system prompt
 func (a *BaseAgent) GetSystemPrompt() string {
 	return a.SystemPrompt
+}
+
+// GetModel returns the LLM model identifier this agent is using
+func (a *BaseAgent) GetModel() string {
+	return a.Model
 }
 
 // Query sends a query to Claude with the agent's context

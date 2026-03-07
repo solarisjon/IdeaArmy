@@ -16,16 +16,22 @@ var discussionResult struct {
 	err        error
 }
 
-// Run starts the TUI and runs the discussion
-func Run(client llm.Client, config *models.TeamConfig, topic string) (*models.Discussion, error) {
+// Run starts the TUI and runs the discussion.
+// Accepts a BackendConfig to enable per-agent model selection.
+func Run(cfg *llm.BackendConfig, config *models.TeamConfig, topic string) (*models.Discussion, error) {
 	// Create the TUI model
 	m := NewModel(config, topic)
+
+	// Set initial model on all agents (will be updated after model assignment)
+	for _, agent := range m.Agents {
+		agent.Model = cfg.Model
+	}
 
 	// Create the bubbletea program
 	p := tea.NewProgram(m)
 
 	// Start the discussion in a goroutine
-	go runDiscussion(p, client, config, topic)
+	go runDiscussion(p, cfg, config, topic)
 
 	// Run the TUI
 	finalModel, err := p.Run()
@@ -45,9 +51,9 @@ func Run(client llm.Client, config *models.TeamConfig, topic string) (*models.Di
 }
 
 // runDiscussion runs the orchestration and sends updates to the TUI
-func runDiscussion(p *tea.Program, client llm.Client, config *models.TeamConfig, topic string) {
-	// Create orchestrator
-	orch := orchestrator.NewConfigurableOrchestrator(client, config)
+func runDiscussion(p *tea.Program, cfg *llm.BackendConfig, config *models.TeamConfig, topic string) {
+	// Create orchestrator with BackendConfig for per-agent model selection
+	orch := orchestrator.NewConfigurableOrchestrator(cfg, config)
 
 	// Set up progress callback to send updates to TUI
 	orch.OnProgress = func(message string) {
@@ -75,6 +81,14 @@ func runDiscussion(p *tea.Program, client llm.Client, config *models.TeamConfig,
 					Message: "Just spoke",
 					Speech:  speech,
 				})
+			}
+		}
+
+		// Detect model assignments (🔧 [role] → model)
+		if strings.Contains(message, "🔧 [") && strings.Contains(message, "→") {
+			role, model := extractModelAssignment(message)
+			if role != "" && model != "" {
+				p.Send(ModelAssignedMsg{Role: role, Model: model})
 			}
 		}
 
@@ -362,4 +376,25 @@ func extractJSONValue(line string) string {
 	val = strings.TrimSuffix(val, ",")
 	val = strings.Trim(val, `"`)
 	return val
+}
+
+// extractModelAssignment parses "🔧 [role] → model" messages.
+func extractModelAssignment(message string) (string, string) {
+	idx := strings.Index(message, "🔧 [")
+	if idx < 0 {
+		return "", ""
+	}
+	rest := message[idx+len("🔧 ["):]
+	endBracket := strings.Index(rest, "]")
+	if endBracket < 0 {
+		return "", ""
+	}
+	role := strings.TrimSpace(rest[:endBracket])
+	// Find "→" separator
+	arrowIdx := strings.Index(rest, "→")
+	if arrowIdx < 0 {
+		return "", ""
+	}
+	model := strings.TrimSpace(rest[arrowIdx+len("→"):])
+	return role, model
 }

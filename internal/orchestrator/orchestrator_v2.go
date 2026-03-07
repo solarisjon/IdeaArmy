@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -9,52 +10,133 @@ import (
 	"github.com/google/uuid"
 	"github.com/yourusername/ai-agent-team/internal/agents"
 	"github.com/yourusername/ai-agent-team/internal/llm"
+	"github.com/yourusername/ai-agent-team/internal/llmfactory"
 	"github.com/yourusername/ai-agent-team/internal/models"
 )
 
 // ConfigurableOrchestrator coordinates a configurable team of agents
 type ConfigurableOrchestrator struct {
-	Config     *models.TeamConfig
-	Agents     map[models.AgentRole]agents.Agent
-	Discussion *models.Discussion
-	OnProgress func(message string)
+	Config        *models.TeamConfig
+	BackendConfig *llm.BackendConfig
+	Agents        map[models.AgentRole]agents.Agent
+	Discussion    *models.Discussion
+	OnProgress    func(message string)
 }
 
-// NewConfigurableOrchestrator creates a new orchestrator with custom team config
-func NewConfigurableOrchestrator(client llm.Client, config *models.TeamConfig) *ConfigurableOrchestrator {
+// NewConfigurableOrchestrator creates a new orchestrator with custom team config.
+// It accepts a BackendConfig so it can create per-agent clients with different models.
+func NewConfigurableOrchestrator(cfg *llm.BackendConfig, config *models.TeamConfig) *ConfigurableOrchestrator {
 	if config == nil {
 		config = models.DefaultTeamConfig()
 	}
-
-	agentMap := make(map[models.AgentRole]agents.Agent)
-
-	// Initialize agents based on config
-	if config.IncludeTeamLeader {
-		agentMap[models.RoleTeamLeader] = agents.NewTeamLeaderAgent(client)
-	}
-	if config.IncludeIdeation {
-		agentMap[models.RoleIdeation] = agents.NewIdeationAgent(client)
-	}
-	if config.IncludeModerator {
-		agentMap[models.RoleModerator] = agents.NewModeratorAgent(client)
-	}
-	if config.IncludeResearcher {
-		agentMap[models.RoleResearcher] = agents.NewResearcherAgent(client)
-	}
-	if config.IncludeCritic {
-		agentMap[models.RoleCritic] = agents.NewCriticAgent(client)
-	}
-	if config.IncludeImplementer {
-		agentMap[models.RoleImplementer] = agents.NewImplementerAgent(client)
-	}
-	if config.IncludeUICreator {
-		agentMap[models.RoleUICreator] = agents.NewUICreatorAgent(client)
+	if config.AgentModels == nil {
+		config.AgentModels = make(map[models.AgentRole]string)
 	}
 
-	return &ConfigurableOrchestrator{
-		Config: config,
-		Agents: agentMap,
+	orch := &ConfigurableOrchestrator{
+		Config:        config,
+		BackendConfig: cfg,
+		Agents:        make(map[models.AgentRole]agents.Agent),
 	}
+
+	orch.initAgents()
+	return orch
+}
+
+// initAgents creates agent instances using per-agent model assignments.
+func (o *ConfigurableOrchestrator) initAgents() {
+	type agentEntry struct {
+		role    models.AgentRole
+		include bool
+		create  func(llm.Client) agents.Agent
+	}
+
+	entries := []agentEntry{
+		{models.RoleTeamLeader, o.Config.IncludeTeamLeader, func(c llm.Client) agents.Agent { return agents.NewTeamLeaderAgent(c) }},
+		{models.RoleIdeation, o.Config.IncludeIdeation, func(c llm.Client) agents.Agent { return agents.NewIdeationAgent(c) }},
+		{models.RoleModerator, o.Config.IncludeModerator, func(c llm.Client) agents.Agent { return agents.NewModeratorAgent(c) }},
+		{models.RoleResearcher, o.Config.IncludeResearcher, func(c llm.Client) agents.Agent { return agents.NewResearcherAgent(c) }},
+		{models.RoleCritic, o.Config.IncludeCritic, func(c llm.Client) agents.Agent { return agents.NewCriticAgent(c) }},
+		{models.RoleImplementer, o.Config.IncludeImplementer, func(c llm.Client) agents.Agent { return agents.NewImplementerAgent(c) }},
+		{models.RoleUICreator, o.Config.IncludeUICreator, func(c llm.Client) agents.Agent { return agents.NewUICreatorAgent(c) }},
+	}
+
+	for _, e := range entries {
+		if !e.include {
+			continue
+		}
+		model := o.Config.AgentModels[e.role]
+		if model == "" {
+			model = o.BackendConfig.Model
+		}
+
+		client, err := llmfactory.NewClientWithModel(o.BackendConfig, model)
+		if err != nil {
+			log.Printf("Warning: failed to create client for %s with model %s: %v (using default)", e.role, model, err)
+			client, _ = llmfactory.NewClient(o.BackendConfig)
+			model = o.BackendConfig.Model
+		}
+
+		agent := e.create(client)
+		// Set the model name on the agent's BaseAgent
+		if ba, ok := getBaseAgent(agent); ok {
+			ba.Model = model
+		}
+		o.Agents[e.role] = agent
+	}
+}
+
+// reinitAgent recreates a single agent with a new model.
+func (o *ConfigurableOrchestrator) reinitAgent(role models.AgentRole, model string) error {
+	creators := map[models.AgentRole]func(llm.Client) agents.Agent{
+		models.RoleTeamLeader:  func(c llm.Client) agents.Agent { return agents.NewTeamLeaderAgent(c) },
+		models.RoleIdeation:    func(c llm.Client) agents.Agent { return agents.NewIdeationAgent(c) },
+		models.RoleModerator:   func(c llm.Client) agents.Agent { return agents.NewModeratorAgent(c) },
+		models.RoleResearcher:  func(c llm.Client) agents.Agent { return agents.NewResearcherAgent(c) },
+		models.RoleCritic:      func(c llm.Client) agents.Agent { return agents.NewCriticAgent(c) },
+		models.RoleImplementer: func(c llm.Client) agents.Agent { return agents.NewImplementerAgent(c) },
+		models.RoleUICreator:   func(c llm.Client) agents.Agent { return agents.NewUICreatorAgent(c) },
+	}
+
+	creator, ok := creators[role]
+	if !ok {
+		return fmt.Errorf("unknown role: %s", role)
+	}
+
+	client, err := llmfactory.NewClientWithModel(o.BackendConfig, model)
+	if err != nil {
+		return fmt.Errorf("creating client for %s model %s: %w", role, model, err)
+	}
+
+	agent := creator(client)
+	if ba, ok := getBaseAgent(agent); ok {
+		ba.Model = model
+	}
+	o.Agents[role] = agent
+	o.Config.AgentModels[role] = model
+	return nil
+}
+
+// getBaseAgent extracts the embedded *BaseAgent from any agent via the common
+// concrete types. Returns false if the agent type is not recognized.
+func getBaseAgent(a agents.Agent) (*agents.BaseAgent, bool) {
+	switch v := a.(type) {
+	case *agents.TeamLeaderAgent:
+		return v.BaseAgent, true
+	case *agents.IdeationAgent:
+		return v.BaseAgent, true
+	case *agents.ModeratorAgent:
+		return v.BaseAgent, true
+	case *agents.ResearcherAgent:
+		return v.BaseAgent, true
+	case *agents.CriticAgent:
+		return v.BaseAgent, true
+	case *agents.ImplementerAgent:
+		return v.BaseAgent, true
+	case *agents.UICreatorAgent:
+		return v.BaseAgent, true
+	}
+	return nil, false
 }
 
 // StartDiscussion initiates a multi-round discussion
@@ -73,6 +155,12 @@ func (o *ConfigurableOrchestrator) StartDiscussion(topic string) error {
 	teamSize := o.Config.TeamSize()
 	o.notify(fmt.Sprintf("🎯 Starting discussion with %d agents on: %s", teamSize, topic))
 	o.notify(fmt.Sprintf("📊 Configuration: %d rounds, deep dive: %v", o.Config.MaxRounds, o.Config.DeepDive))
+
+	// Phase 0: Model Assignment (team leader selects models for agents)
+	if err := o.runModelAssignment(); err != nil {
+		// Non-fatal: fall back to default model for all agents
+		log.Printf("Model assignment skipped: %v", err)
+	}
 
 	// Phase 1: Kickoff
 	if err := o.runKickoff(); err != nil {
@@ -347,6 +435,151 @@ func (o *ConfigurableOrchestrator) runVisualization() error {
 }
 
 // Helper methods
+
+// runModelAssignment asks the team leader to assign models to each agent.
+func (o *ConfigurableOrchestrator) runModelAssignment() error {
+	o.notify("🧠 Phase 0: Model Assignment")
+
+	leader, ok := o.Agents[models.RoleTeamLeader]
+	if !ok {
+		return fmt.Errorf("team leader is required for model assignment")
+	}
+
+	// Discover available models
+	availableModels, err := llm.ListModels(o.BackendConfig)
+	if err != nil {
+		o.notify(fmt.Sprintf("  ⚠️  Could not list models: %s (using default for all agents)", err))
+		return err
+	}
+
+	if len(availableModels) == 0 {
+		o.notify("  ⚠️  No models returned from API (using default for all agents)")
+		return fmt.Errorf("no models available")
+	}
+
+	// Build a model list string
+	var modelList []string
+	for _, m := range availableModels {
+		modelList = append(modelList, m.ID)
+	}
+
+	// Build the agent roster
+	var agentRoster []string
+	for role := range o.Agents {
+		agentRoster = append(agentRoster, string(role))
+	}
+
+	prompt := fmt.Sprintf(`You are assigning LLM models to each agent on our team.
+
+Available models:
+%s
+
+Team agents that need a model assigned:
+%s
+
+The current default model is: %s
+
+Consider each agent's role when choosing:
+- Creative roles (ideation) may benefit from more creative/capable models
+- Analytical roles (critic, moderator) may benefit from strong reasoning models
+- Research roles need broad knowledge
+- UI/visualization roles need good instruction following
+- The team leader (you) should use a strong general model
+
+Respond with ONLY a JSON object mapping agent role to model ID. Example:
+{"team_leader": "gpt-4o", "ideation": "gpt-4o", "moderator": "gpt-4o-mini"}
+
+JSON response:`, strings.Join(modelList, "\n"), strings.Join(agentRoster, ", "), o.BackendConfig.Model)
+
+	response, err := leader.Process(o.Discussion, prompt)
+	if err != nil {
+		o.notify(fmt.Sprintf("  ⚠️  Model assignment failed: %s (using default)", err))
+		return err
+	}
+
+	// Parse the JSON assignments
+	assignments := o.parseModelAssignments(response.Content, modelList)
+	if len(assignments) == 0 {
+		o.notify("  ⚠️  Could not parse model assignments (using default for all agents)")
+		return fmt.Errorf("no valid assignments parsed")
+	}
+
+	// Apply assignments: reinitialize agents with assigned models
+	for role, model := range assignments {
+		agentRole := models.AgentRole(role)
+		if _, exists := o.Agents[agentRole]; !exists {
+			continue
+		}
+		if err := o.reinitAgent(agentRole, model); err != nil {
+			log.Printf("Warning: failed to reassign %s to model %s: %v", role, model, err)
+			continue
+		}
+		o.notify(fmt.Sprintf("  🔧 [%s] → %s", role, model))
+	}
+
+	o.notify("  ✅ Model assignments complete")
+	return nil
+}
+
+// parseModelAssignments extracts a role→model map from the LLM response.
+// It validates model IDs against the available list.
+func (o *ConfigurableOrchestrator) parseModelAssignments(content string, availableModels []string) map[string]string {
+	// Build a set of valid model IDs
+	validModels := make(map[string]bool, len(availableModels))
+	for _, m := range availableModels {
+		validModels[m] = true
+	}
+
+	// Try to extract JSON from the response (may be wrapped in markdown)
+	jsonStr := extractJSON(content)
+	if jsonStr == "" {
+		return nil
+	}
+
+	var raw map[string]string
+	if err := json.Unmarshal([]byte(jsonStr), &raw); err != nil {
+		log.Printf("Warning: could not parse model assignment JSON: %v", err)
+		return nil
+	}
+
+	// Validate and filter
+	result := make(map[string]string)
+	for role, model := range raw {
+		if validModels[model] {
+			result[role] = model
+		} else {
+			log.Printf("Warning: model %q assigned to %s is not in available list, skipping", model, role)
+		}
+	}
+	return result
+}
+
+// extractJSON finds the first JSON object in a string (handles markdown fences).
+func extractJSON(s string) string {
+	// Strip markdown code fences
+	s = strings.ReplaceAll(s, "```json", "")
+	s = strings.ReplaceAll(s, "```", "")
+	s = strings.TrimSpace(s)
+
+	// Find first { ... }
+	start := strings.Index(s, "{")
+	if start < 0 {
+		return ""
+	}
+	depth := 0
+	for i := start; i < len(s); i++ {
+		switch s[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return s[start : i+1]
+			}
+		}
+	}
+	return ""
+}
 
 func (o *ConfigurableOrchestrator) getTeamMembersList() string {
 	var members []string

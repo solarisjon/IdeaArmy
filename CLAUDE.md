@@ -35,15 +35,25 @@ This is a multi-agent orchestration system. The user provides a topic, and a con
 
 ### Key components
 
-- **`internal/llm/`** — `Client` interface and `Message` type shared by all backends. `resolve.go` handles env-var-based auto-detection. All agents and orchestrators program to this interface.
-- **`internal/llmfactory/`** — Factory functions (`NewClient`, `NewClientAuto`) that create the appropriate backend client. Separated from `llm/` to avoid import cycles.
-- **`internal/agents/`** — Each agent embeds `BaseAgent` and implements the `Agent` interface (`Process()` method). Agents are constructed with an `llm.Client` and have role-specific system prompts and temperatures.
-- **`internal/orchestrator/`** — `ConfigurableOrchestrator` (v2) instantiates agents from a `TeamConfig`, stores them in a `map[AgentRole]Agent`, and drives a phased discussion: kickoff → ideation → validation → selection → report generation. Progress updates go through an `OnProgress` callback.
-- **`internal/models/`** — Core data types (`Discussion`, `Idea`, `Message`, `AgentResponse`) and team presets (`StandardTeamConfig`, `ExtendedTeamConfig`, `FullTeamConfig`) in `config.go`. New agent roles must be added to `types.go` as `AgentRole` constants.
+- **`internal/llm/`** — `Client` interface and `Message` type shared by all backends. `resolve.go` handles env-var-based auto-detection. `models.go` provides model discovery via `ListModels()`. All agents and orchestrators program to this interface.
+- **`internal/llmfactory/`** — Factory functions (`NewClient`, `NewClientAuto`, `NewClientWithModel`) that create the appropriate backend client. `ResolveBackendAuto()` resolves a `*BackendConfig` without creating a client. Separated from `llm/` to avoid import cycles.
+- **`internal/agents/`** — Each agent embeds `BaseAgent` and implements the `Agent` interface (`Process()` and `GetModel()` methods). Agents are constructed with an `llm.Client` and have role-specific system prompts and temperatures. `BaseAgent.Model` tracks the assigned model name.
+- **`internal/orchestrator/`** — `ConfigurableOrchestrator` (v2) accepts a `*llm.BackendConfig` and `TeamConfig`, creates per-agent `llm.Client` instances (potentially with different models), stores agents in a `map[AgentRole]Agent`, and drives a phased discussion: model assignment → kickoff → exploration → validation → selection → report generation. Progress updates go through an `OnProgress` callback.
+- **`internal/models/`** — Core data types (`Discussion`, `Idea`, `Message`, `AgentResponse`) and team presets (`StandardTeamConfig`, `ExtendedTeamConfig`, `FullTeamConfig`) in `config.go`. `TeamConfig.AgentModels` maps agent roles to model names for per-agent model selection. New agent roles must be added to `types.go` as `AgentRole` constants.
 - **`internal/claude/`** — Anthropic Messages API client implementing `llm.Client`. `claude.Message` is a type alias for `llm.Message`.
 - **`internal/openai/`** — OpenAI-compatible API client implementing `llm.Client`. Works with any OpenAI-compatible endpoint (OpenAI, Azure, LLM proxies).
-- **`internal/tui/`** — Bubbletea-based terminal UI with Lipgloss styling.
+- **`internal/tui/`** — Bubbletea-based terminal UI with Lipgloss styling. Displays agent model assignments at the bottom of each agent card.
 - **`cmd/`** — Entry points: `cli/main.go` (v1), `cli/main_v2.go` (configurable), `cli/main_tui.go` (TUI), `server/main.go` (v1), `server/main_v2.go` (configurable).
+
+### Per-agent model selection
+
+The v2 orchestrator supports running different LLM models per agent:
+1. Constructor receives `*llm.BackendConfig` (not a pre-built `llm.Client`)
+2. `llm.ListModels()` discovers available models from the backend
+3. Team leader assigns models to agents via structured JSON response
+4. `llmfactory.NewClientWithModel()` creates a dedicated client per agent
+5. Assignment is best-effort — falls back to default model on failure
+6. The TUI shows each agent's model as `⚙ model-name` below their speech bubble
 
 ### Adding a new agent
 
