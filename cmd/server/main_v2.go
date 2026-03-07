@@ -458,7 +458,8 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             display: grid;
             grid-template-columns: 1fr 320px;
             gap: 0;
-            min-height: calc(100vh - 140px);
+            height: calc(100vh - 220px);
+            min-height: 400px;
         }
 
         /* ── Agent Desks ── */
@@ -468,6 +469,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 16px;
             align-content: start;
+            overflow-y: auto;
         }
 
         .desk {
@@ -559,6 +561,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             border-left: 1px solid var(--border);
             display: flex; flex-direction: column;
             overflow: hidden;
+            height: 100%;
         }
         .sidebar-section { padding: 16px; border-bottom: 1px solid var(--border); }
         .sidebar-section h3 { color: var(--electric-cyan); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
@@ -574,6 +577,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         .activity-feed {
             flex: 1; overflow-y: auto; padding: 12px 16px;
             font-size: 0.75rem; line-height: 1.7; color: var(--text-dim);
+            min-height: 120px; max-height: 300px;
         }
         .activity-feed .feed-entry { margin-bottom: 3px; word-break: break-word; }
 
@@ -634,8 +638,9 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 
         /* ── Responsive ── */
         @media (max-width: 900px) {
-            .room-grid { grid-template-columns: 1fr; }
-            .sidebar { border-left: none; border-top: 1px solid var(--border); max-height: 300px; }
+            .room-grid { grid-template-columns: 1fr; height: auto; min-height: 0; }
+            .desks-area { max-height: 60vh; overflow-y: auto; }
+            .sidebar { border-left: none; border-top: 1px solid var(--border); height: auto; max-height: 400px; }
             .team-options { grid-template-columns: 1fr; }
         }
 
