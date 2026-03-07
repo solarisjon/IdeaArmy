@@ -51,7 +51,7 @@ func StandardTeamConfig() *TeamConfig {
 		IncludeUICreator:   true,
 		IncludeIdeation:    true,
 		IncludeModerator:   true,
-		IncludeResearcher:  false,
+		IncludeResearcher:  true,
 		IncludeCritic:      false,
 		IncludeImplementer: false,
 		MaxRounds:          1,

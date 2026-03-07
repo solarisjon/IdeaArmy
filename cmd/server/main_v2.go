@@ -836,7 +836,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                 <div class="team-opt selected" onclick="selectTeam(this,'standard')">
                     <span class="t-icon">⚡</span>
                     <div class="t-name">Starter Pack</div>
-                    <div class="t-desc">4 bots · 1 round</div>
+                    <div class="t-desc">5 bots · 1 round</div>
                 </div>
                 <div class="team-opt" onclick="selectTeam(this,'extended')">
                     <span class="t-icon">🔍</span>
@@ -995,7 +995,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         };
 
         const TEAM_AGENTS = {
-            standard: ['team_leader','ideation','moderator','ui_creator'],
+            standard: ['team_leader','ideation','researcher','moderator','ui_creator'],
             extended: ['team_leader','ideation','moderator','researcher','critic','ui_creator'],
             full:     ['team_leader','ideation','moderator','researcher','critic','implementer','ui_creator'],
             custom:   ['team_leader','ideation','moderator','ui_creator']
