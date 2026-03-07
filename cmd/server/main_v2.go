@@ -722,42 +722,58 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         }
 
         /* ── Evidence Cards ─────────────────────────────────────── */
-        .evidence-section {
+        /* ── Evidence Drawer ──────────────────────────────────── */
+        .ev-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: rgba(0,212,255,0.12); border: 1px solid rgba(0,212,255,0.3);
+            color: #00d4ff; border-radius: 20px;
+            font-size: 0.62rem; font-weight: 700; padding: 2px 8px;
+            cursor: pointer; user-select: none;
+            transition: background 0.15s, border-color 0.15s;
             margin-top: 8px;
-            border-top: 1px solid rgba(255,255,255,0.08);
-            padding-top: 6px;
         }
-        .evidence-toggle {
-            font-size: 0.65rem;
-            color: var(--text-dim);
-            cursor: pointer;
-            user-select: none;
-            padding: 2px 0;
-            display: flex;
-            align-items: center;
-            gap: 4px;
+        .ev-badge:hover { background: rgba(0,212,255,0.22); border-color: rgba(0,212,255,0.5); }
+        .ev-badge.ev-placeholder-badge { background: rgba(255,200,100,0.1); border-color: rgba(255,200,100,0.3); color: rgba(255,200,100,0.8); }
+
+        /* Drawer overlay */
+        #evidenceDrawer {
+            position: fixed; top: 0; right: -420px; width: 400px; height: 100vh;
+            background: var(--bg-card); border-left: 1px solid rgba(0,212,255,0.25);
+            z-index: 1000; display: flex; flex-direction: column;
+            transition: right 0.3s cubic-bezier(0.4,0,0.2,1);
+            box-shadow: -8px 0 32px rgba(0,0,0,0.4);
         }
-        .evidence-toggle:hover { color: var(--text-bright); }
-        .evidence-cards { display: none; margin-top: 6px; }
-        .evidence-cards.open { display: block; }
+        #evidenceDrawer.open { right: 0; }
+        .drawer-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; border-bottom: 1px solid var(--border);
+            background: rgba(0,212,255,0.06);
+        }
+        .drawer-header h3 { margin: 0; font-size: 0.9rem; color: #00d4ff; }
+        .drawer-close {
+            background: none; border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text-dim); font-size: 1rem; width: 28px; height: 28px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .drawer-close:hover { color: var(--text-bright); border-color: var(--text-dim); }
+        .drawer-body { flex: 1; overflow-y: auto; padding: 16px; }
+        .drawer-empty { color: var(--text-dim); font-size: 0.8rem; text-align: center; margin-top: 40px; }
+        .drawer-group { margin-bottom: 20px; }
+        .drawer-group-title {
+            font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px;
+            color: var(--text-dim); margin-bottom: 8px; font-weight: 700;
+        }
         .evidence-card {
             background: rgba(0,212,255,0.07);
             border: 1px solid rgba(0,212,255,0.2);
-            border-radius: 6px;
-            padding: 6px 8px;
-            margin-bottom: 5px;
-            font-size: 0.67rem;
-            line-height: 1.5;
+            border-radius: 6px; padding: 8px 10px; margin-bottom: 6px;
+            font-size: 0.72rem; line-height: 1.5;
         }
         .evidence-card a {
-            color: #00d4ff;
-            text-decoration: none;
-            font-weight: 600;
-            display: block;
-            margin-bottom: 2px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            color: #00d4ff; text-decoration: none; font-weight: 600;
+            display: block; margin-bottom: 2px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         .evidence-card a:hover { text-decoration: underline; }
         .evidence-card .ev-desc { color: var(--text-dim); }
@@ -765,14 +781,29 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         .evidence-card.ev-placeholder { border-color: rgba(255,200,100,0.2); background: rgba(255,200,100,0.04); }
         .evidence-card.ev-placeholder .ev-notitle { color: rgba(255,200,100,0.6); }
         .evidence-card .ev-query {
-            margin-top: 3px;
-            font-style: italic;
-            color: rgba(255,255,255,0.3);
-            font-size: 0.6rem;
+            margin-top: 3px; font-style: italic;
+            color: rgba(255,255,255,0.3); font-size: 0.6rem;
         }
+        /* Dim backdrop */
+        #drawerBackdrop {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 999;
+        }
+        #drawerBackdrop.open { display: block; }
     </style>
 </head>
 <body>
+    <!-- ── Evidence Drawer (global overlay) ── -->
+    <div id="drawerBackdrop" onclick="closeEvidenceDrawer()"></div>
+    <div id="evidenceDrawer">
+        <div class="drawer-header">
+            <h3>🔍 Research Evidence</h3>
+            <button class="drawer-close" onclick="closeEvidenceDrawer()" title="Close (Esc)">✕</button>
+        </div>
+        <div class="drawer-body" id="drawerBody">
+            <div class="drawer-empty">No research evidence yet.<br>Evidence cards will appear here as the Researcher agent searches the web.</div>
+        </div>
+    </div>
+
     <div class="war-room-header">
         <h1>🤖 THE IDEA FACTORY</h1>
         <div class="subtitle">A Playful Robot Army for Collaborative Brainstorming</div>
@@ -1117,39 +1148,81 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 
         let eventSource = null;
 
-        // ── Evidence Cards ──────────────────────────────────────────
-        function handleEvidenceUpdate(role, results) {
+        // ── Evidence Drawer ──────────────────────────────────────────
+        // allEvidence: role → [{title, url, description, query}, ...]
+        var allEvidence = {};
+
+        function openEvidenceDrawer() {
+            document.getElementById('evidenceDrawer').classList.add('open');
+            document.getElementById('drawerBackdrop').classList.add('open');
+        }
+        function closeEvidenceDrawer() {
+            document.getElementById('evidenceDrawer').classList.remove('open');
+            document.getElementById('drawerBackdrop').classList.remove('open');
+        }
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeEvidenceDrawer(); });
+
+        function buildEvidenceCard(r) {
+            const card = document.createElement('div');
+            const isPlaceholder = !r.url && r.title === 'Internal Knowledge (no web search)';
+            card.className = 'evidence-card' + (isPlaceholder ? ' ev-placeholder' : '');
+            const title = r.title || r.url || 'Source';
+            const desc = r.description ? r.description.slice(0, 160) : '';
+            const titleHtml = r.url
+                ? '<a href="' + r.url + '" target="_blank" rel="noopener">' + escapeHtml(title) + '</a>'
+                : '<span class="ev-notitle">' + escapeHtml(title) + '</span>';
+            card.innerHTML = titleHtml +
+                (desc ? '<div class="ev-desc">' + escapeHtml(desc) + '</div>' : '') +
+                (r.query ? '<div class="ev-query">🔍 ' + escapeHtml(r.query) + '</div>' : '');
+            return card;
+        }
+
+        function refreshDrawer() {
+            const body = document.getElementById('drawerBody');
+            const roles = Object.keys(allEvidence);
+            if (roles.length === 0) return;
+            body.innerHTML = '';
+            roles.forEach(function(role) {
+                const results = allEvidence[role];
+                if (!results || results.length === 0) return;
+                const group = document.createElement('div');
+                group.className = 'drawer-group';
+                const persona = agentPersonas[role] || { name: role, emoji: '🤖' };
+                const liveCount = results.filter(r => r.url).length;
+                const label = liveCount > 0 ? liveCount + ' sources' : results.length + ' queries';
+                group.innerHTML = '<div class="drawer-group-title">' + persona.emoji + ' ' + persona.name + ' — ' + label + '</div>';
+                results.forEach(function(r) { group.appendChild(buildEvidenceCard(r)); });
+                body.appendChild(group);
+            });
+        }
+
+        function updateEvidenceBadge(role, results) {
             const desk = document.getElementById('desk-' + role);
             if (!desk) return;
-            let section = desk.querySelector('.evidence-section');
-            if (!section) {
-                section = document.createElement('div');
-                section.className = 'evidence-section';
-                section.innerHTML = '<div class="evidence-toggle" onclick="this.nextElementSibling.classList.toggle(\'open\')">🔍 <span>Research Sources (' + results.length + ')</span> ▾</div><div class="evidence-cards"></div>';
-                desk.appendChild(section);
-            }
-            const toggle = section.querySelector('.evidence-toggle span');
-            const cards = section.querySelector('.evidence-cards');
-            cards.innerHTML = '';
-            results.forEach(function(r) {
-                const card = document.createElement('div');
-                const isPlaceholder = !r.url && r.title === 'Internal Knowledge (no web search)';
-                card.className = 'evidence-card' + (isPlaceholder ? ' ev-placeholder' : '');
-                const title = r.title || r.url || 'Source';
-                const desc = r.description ? r.description.slice(0, 160) : '';
-                const titleHtml = r.url
-                    ? '<a href="' + r.url + '" target="_blank" rel="noopener">' + escapeHtml(title) + '</a>'
-                    : '<span class="ev-notitle">' + escapeHtml(title) + '</span>';
-                card.innerHTML = titleHtml +
-                    (desc ? '<div class="ev-desc">' + escapeHtml(desc) + '</div>' : '') +
-                    (r.query ? '<div class="ev-query">🔍 ' + escapeHtml(r.query) + '</div>' : '');
-                cards.appendChild(card);
-            });
             const liveCount = results.filter(r => r.url).length;
-            if (toggle) toggle.textContent = liveCount > 0
-                ? 'Research Sources (' + liveCount + ')'
-                : 'Research Queries (' + results.length + ')';
-            cards.classList.add('open');
+            const total = results.length;
+            const isPlaceholder = liveCount === 0;
+            let badge = desk.querySelector('.ev-badge');
+            if (!badge) {
+                badge = document.createElement('div');
+                badge.className = 'ev-badge' + (isPlaceholder ? ' ev-placeholder-badge' : '');
+                badge.onclick = openEvidenceDrawer;
+                desk.appendChild(badge);
+            }
+            badge.className = 'ev-badge' + (isPlaceholder ? ' ev-placeholder-badge' : '');
+            badge.innerHTML = '🔍 ' + (isPlaceholder ? total + ' queries' : liveCount + ' sources');
+        }
+
+        function handleEvidenceUpdate(role, results) {
+            if (!allEvidence[role]) allEvidence[role] = [];
+            allEvidence[role] = allEvidence[role].concat(results);
+            updateEvidenceBadge(role, allEvidence[role]);
+            refreshDrawer();
+            // Auto-open drawer on first real evidence
+            const hasNew = results.some(r => r.url);
+            if (hasNew && Object.values(allEvidence).flat().filter(r => r.url).length === results.filter(r => r.url).length) {
+                openEvidenceDrawer();
+            }
         }
 
         function escapeHtml(s) {
