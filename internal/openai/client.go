@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"strings"
 
 	"github.com/yourusername/ai-agent-team/internal/llm"
 )
@@ -111,8 +113,29 @@ func (c *Client) SendMessageWithTokens(messages []llm.Message, systemPrompt stri
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
+		bodyStr := string(body)
+		// Some models (e.g., gpt-5.2) don't support custom temperature.
+		// Retry once with temperature omitted if that's the issue.
+		if resp.StatusCode == 400 && req.Temperature != nil && strings.Contains(bodyStr, "temperature") {
+			log.Printf("Model %s rejected temperature=%.1f, retrying with default temperature", c.Model, *req.Temperature)
+			req.Temperature = nil
+			retryData, _ := json.Marshal(req)
+			retryReq, _ := http.NewRequest("POST", url, bytes.NewBuffer(retryData))
+			retryReq.Header.Set("Content-Type", "application/json")
+			retryReq.Header.Set("Authorization", "Bearer "+c.APIKey)
+			retryResp, retryErr := c.client.Do(retryReq)
+			if retryErr == nil {
+				defer retryResp.Body.Close()
+				body, _ = io.ReadAll(retryResp.Body)
+				if retryResp.StatusCode == http.StatusOK {
+					goto parseResponse
+				}
+			}
+		}
+		return "", fmt.Errorf("API error (status %d): %s", resp.StatusCode, bodyStr)
 	}
+
+parseResponse:
 
 	var apiResp chatResponse
 	if err := json.Unmarshal(body, &apiResp); err != nil {
