@@ -13,6 +13,7 @@ import (
 	"github.com/yourusername/ai-agent-team/internal/llmfactory"
 	"github.com/yourusername/ai-agent-team/internal/models"
 	"github.com/yourusername/ai-agent-team/internal/orchestrator"
+	"github.com/yourusername/ai-agent-team/internal/tools"
 )
 
 func main() {
@@ -20,6 +21,14 @@ func main() {
 	fmt.Println("║   AI Agent Team v2 - Configurable Multi-Agent System  ║")
 	fmt.Println("╚════════════════════════════════════════════════════════╝")
 	fmt.Println()
+
+	// Handle --test-firecrawl flag: validates key and network access then exits.
+	for _, arg := range os.Args[1:] {
+		if arg == "--test-firecrawl" {
+			testFirecrawl()
+			return
+		}
+	}
 
 	// Resolve LLM backend config (auto-detects from env vars)
 	cfg, err := llmfactory.ResolveBackendAuto("")
@@ -246,4 +255,58 @@ func printTeamComposition(config *models.TeamConfig) {
 	fmt.Printf("   Rounds: %d\n", config.MaxRounds)
 	fmt.Printf("   Deep Dive: %v\n", config.DeepDive)
 	fmt.Printf("   Total Agents: %d\n", config.TeamSize())
+}
+
+// testFirecrawl validates the Firecrawl API key and network reachability.
+// Uses the key from FIRECRAWL_API_KEY env var, or prompts if unset.
+// Exits 0 on success, 1 on failure — useful for pod/container health checks.
+func testFirecrawl() {
+fmt.Println("🔍 Firecrawl connectivity test")
+fmt.Println(strings.Repeat("─", 40))
+
+key := os.Getenv("FIRECRAWL_API_KEY")
+if key == "" {
+fmt.Print("FIRECRAWL_API_KEY not set. Enter key to test: ")
+reader := bufio.NewReader(os.Stdin)
+k, _ := reader.ReadString('\n')
+key = strings.TrimSpace(k)
+} else {
+masked := key
+if len(key) > 8 {
+masked = key[:4] + strings.Repeat("*", len(key)-8) + key[len(key)-4:]
+}
+fmt.Printf("Using FIRECRAWL_API_KEY: %s\n", masked)
+}
+
+if key == "" {
+fmt.Println("❌ No key provided — aborting.")
+os.Exit(1)
+}
+
+fmt.Println("Sending test search query to api.firecrawl.dev …")
+
+var gotResults []tools.SearchResult
+executor := tools.WebSearchExecutor(key,
+func(msg string) { fmt.Println(" ", msg) },
+func(results []tools.SearchResult) { gotResults = results },
+)
+
+result, err := executor(`{"query":"connectivity test","max_results":1}`)
+if err != nil {
+fmt.Printf("❌ Error: %v\n", err)
+os.Exit(1)
+}
+
+fmt.Println()
+if strings.Contains(result, "unavailable") || strings.Contains(result, "failed") || strings.Contains(result, "error") {
+fmt.Printf("❌ Search returned a failure response:\n   %s\n", result)
+os.Exit(1)
+}
+
+fmt.Printf("✅ Firecrawl reachable — %d result(s) returned.\n", len(gotResults))
+for i, r := range gotResults {
+fmt.Printf("   [%d] %s\n       %s\n", i+1, r.Title, r.URL)
+}
+fmt.Println(strings.Repeat("─", 40))
+fmt.Println("✅ Firecrawl API key and network access look good!")
 }
